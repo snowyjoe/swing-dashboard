@@ -1,1 +1,64 @@
 
+# ============================================================
+#  Swing Trading Dashboard — Daily Data Fetch
+#  Runs at 3:30 PM IST (10:00 UTC) every weekday.
+#  Fetches market data via Upstox API, computes EMAs + breadth,
+#  writes dashboard_data.json and pushes it to the repo so
+#  GitHub Pages serves an always-up-to-date dashboard.
+# ============================================================
+
+name: Fetch Market Data
+
+on:
+  schedule:
+    # 10:00 UTC = 3:30 PM IST  (Mon–Fri)
+    - cron: "0 10 * * 1-5"
+
+  # Allow manual trigger from Actions tab for testing
+  workflow_dispatch:
+
+permissions:
+  contents: write          # needed to push the updated JSON
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15     # breadth scan can take ~4 min; generous cap
+
+    steps:
+      # ── 1. Checkout repo ──
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python ──
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ── 3. Install dependencies ──
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── 4. Run fetch script ──
+      - name: Run data fetch
+        env:
+          UPSTOX_USERNAME:      ${{ secrets.UPSTOX_USERNAME }}
+          UPSTOX_PASSWORD:      ${{ secrets.UPSTOX_PASSWORD }}
+          UPSTOX_PIN:           ${{ secrets.UPSTOX_PIN }}
+          UPSTOX_TOTP_SECRET:   ${{ secrets.UPSTOX_TOTP_SECRET }}
+          UPSTOX_CLIENT_ID:     ${{ secrets.UPSTOX_CLIENT_ID }}
+          UPSTOX_CLIENT_SECRET: ${{ secrets.UPSTOX_CLIENT_SECRET }}
+          UPSTOX_REDIRECT_URI:  ${{ secrets.UPSTOX_REDIRECT_URI }}
+          OUTPUT_PATH:          dashboard_data.json
+        run: python fetch.py
+
+      # ── 5. Commit & push updated JSON ──
+      - name: Commit and push data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dashboard_data.json
+          # Only commit if there are changes (avoids empty commits on holidays)
+          git diff --cached --quiet || git commit -m "data: update dashboard $(date -u +%Y-%m-%d)"
+          git push
