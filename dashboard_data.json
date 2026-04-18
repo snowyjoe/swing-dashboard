@@ -1,0 +1,233 @@
+{
+  "meta": {
+    "generated_at": "2026-04-18T02:09:01.820763",
+    "generated_date": "2026-04-17",
+    "generated_time": "15:30:00",
+    "data_source": "Upstox API v2",
+    "index_lookback_days": 365,
+    "breadth_lookback_days": 50,
+    "schema_version": "1.1"
+  },
+  "market_pulse": {
+    "nifty": {
+      "current_close": 24250.5,
+      "prev_close": 24180.3,
+      "change_pct": 0.29,
+      "ema_20": 24100.15,
+      "ema_50": 23850.4,
+      "ema_200": 22900.75,
+      "atr_14": 185.3,
+      "high_52w": 26277.35,
+      "low_52w": 21281.45,
+      "candle_count": 248,
+      "label": "Nifty 50",
+      "instrument_key": "NSE_INDEX|Nifty 50"
+    },
+    "bank_nifty": {
+      "current_close": 51850.2,
+      "prev_close": 51600.8,
+      "change_pct": 0.48,
+      "ema_20": 51500.0,
+      "ema_50": 50800.1,
+      "ema_200": 48900.55,
+      "atr_14": 520.45,
+      "high_52w": 54467.35,
+      "low_52w": 44900.15,
+      "candle_count": 248,
+      "label": "Bank Nifty",
+      "instrument_key": "NSE_INDEX|Nifty Bank"
+    },
+    "midcap": {
+      "current_close": 15820.6,
+      "prev_close": 15780.1,
+      "change_pct": 0.26,
+      "ema_20": 15650.3,
+      "ema_50": 15200.8,
+      "ema_200": 14100.25,
+      "atr_14": 210.5,
+      "high_52w": 16800.0,
+      "low_52w": 12500.0,
+      "candle_count": 248,
+      "label": "Nifty Midcap 50",
+      "instrument_key": "NSE_INDEX|Nifty Midcap 50"
+    },
+    "vix": {
+      "current_close": 13.85,
+      "prev_close": 14.2,
+      "change_pct": -2.46,
+      "ema_20": 14.1,
+      "ema_50": 14.8,
+      "ema_200": 13.5,
+      "atr_14": 1.25,
+      "high_52w": 28.5,
+      "low_52w": 10.2,
+      "candle_count": 248,
+      "label": "India VIX",
+      "instrument_key": "NSE_INDEX|India VIX"
+    }
+  },
+  "market_regime": {
+    "regime": "Bullish Trending",
+    "active_modules": [
+      "M1",
+      "M3"
+    ],
+    "description": "Nifty above 20 & 50 EMA, VIX 13.9, breadth 68% (Nifty 500)",
+    "colour": "green"
+  },
+  "breadth": {
+    "breadth_pct": 68.2,
+    "above_ema": 327,
+    "below_ema": 153,
+    "errors": 20,
+    "total_constituents": 500,
+    "total_computed": 480,
+    "index_used": "NIFTY 500"
+  },
+  "sector_regimes": {
+    "BANK": {
+      "current_close": 51850.2,
+      "ema_20": 51500.0,
+      "ema_50": 50800.1,
+      "ema_200": 48900.55,
+      "label": "Nifty Bank",
+      "regime": "Bullish",
+      "position_size_rule": "100% of calculated size",
+      "regime_colour": "green"
+    },
+    "IT": {
+      "current_close": 38200.5,
+      "ema_20": 38500.0,
+      "ema_50": 37800.0,
+      "ema_200": 35200.0,
+      "label": "Nifty IT",
+      "regime": "Sideways",
+      "position_size_rule": "50% of calculated size",
+      "regime_colour": "yellow"
+    },
+    "FIN_SERVICES": {
+      "current_close": 22500.0,
+      "ema_20": 22200.0,
+      "ema_50": 21800.0,
+      "ema_200": 20500.0,
+      "label": "Nifty Financial Services",
+      "regime": "Bullish",
+      "position_size_rule": "100% of calculated size",
+      "regime_colour": "green"
+    },
+    "AUTO": {
+      "current_close": 25100.0,
+      "ema_20": 24800.0,
+      "ema_50": 24500.0,
+      "ema_200": 23100.0,
+      "label": "Nifty Auto",
+      "regime": "Bullish",
+      "position_size_rule": "100% of calculated size",
+      "regime_colour": "green"
+    },
+    "FMCG": {
+      "current_close": 55200.0,
+      "ema_20": 55400.0,
+      "ema_50": 54800.0,
+      "ema_200": 52000.0,
+      "label": "Nifty FMCG",
+      "regime": "Recovering",
+      "position_size_rule": "50% of calculated size",
+      "regime_colour": "yellow"
+    },
+    "METAL": {
+      "current_close": 8500.0,
+      "ema_20": 8600.0,
+      "ema_50": 8700.0,
+      "ema_200": 8200.0,
+      "label": "Nifty Metal",
+      "regime": "Correcting",
+      "position_size_rule": "Skip trade entirely",
+      "regime_colour": "orange"
+    },
+    "PHARMA": {
+      "current_close": 19800.0,
+      "ema_20": 19500.0,
+      "ema_50": 19200.0,
+      "ema_200": 18100.0,
+      "label": "Nifty Pharma",
+      "regime": "Bullish",
+      "position_size_rule": "100% of calculated size",
+      "regime_colour": "green"
+    },
+    "REALTY": {
+      "current_close": 890.0,
+      "ema_20": 870.0,
+      "ema_50": 850.0,
+      "ema_200": 780.0,
+      "label": "Nifty Realty",
+      "regime": "Bullish",
+      "position_size_rule": "100% of calculated size",
+      "regime_colour": "green"
+    },
+    "OIL_GAS": {
+      "current_close": 11200.0,
+      "ema_20": 11300.0,
+      "ema_50": 11500.0,
+      "ema_200": 10800.0,
+      "label": "Nifty Oil & Gas",
+      "regime": "Recovering",
+      "position_size_rule": "50% of calculated size",
+      "regime_colour": "yellow"
+    },
+    "CONSUMER_DURABLES": {
+      "current_close": 32500.0,
+      "ema_20": 32100.0,
+      "ema_50": 31800.0,
+      "ema_200": 30200.0,
+      "label": "Nifty Consumer Durables",
+      "regime": "Bullish",
+      "position_size_rule": "100% of calculated size",
+      "regime_colour": "green"
+    }
+  },
+  "modules": {
+    "M1": {
+      "name": "Trend Pullback",
+      "active_in": [
+        "Bullish Trending"
+      ],
+      "entry": "Strong stock in uptrend pulling back to 20 EMA.",
+      "stop": "Entry - (1.5 x ATR14)",
+      "target": "2.5x risk distance",
+      "hold": "5-15 days"
+    },
+    "M2": {
+      "name": "Oversold Bounce",
+      "active_in": [
+        "Correcting",
+        "Recovering"
+      ],
+      "entry": "Quality stock above 200 EMA, RSI < 38, down 8%+ in 5 days.",
+      "stop": "Entry - (1.5 x ATR14)",
+      "target": "5-8% or prior resistance",
+      "hold": "2-7 days"
+    },
+    "M3": {
+      "name": "Range Breakout",
+      "active_in": [
+        "Bullish Trending",
+        "Sideways",
+        "Recovering"
+      ],
+      "entry": "Stock in 8-12% range for 15-30 sessions, volume drying up.",
+      "stop": "Entry - (1.5 x ATR14)",
+      "target": "3x risk distance",
+      "hold": "5-21 days"
+    }
+  },
+  "risk_rules": {
+    "max_risk_per_trade": "0.5% of capital",
+    "max_open_trades": 5,
+    "max_portfolio_risk": "2.5% of capital",
+    "stop_loss_method": "Entry - (1.5 x ATR14)",
+    "time_stop": "Exit if no movement in 10 sessions",
+    "loss_streak_rule": "3 consecutive losses in a week -> stop that week",
+    "monthly_drawdown": "Down 5% -> reduce sizes by 50% next month"
+  }
+}

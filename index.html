@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swing Dashboard</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Surface */
+  --bg:         #06090f;
+  --surface-1:  #0d1117;
+  --surface-2:  #151b26;
+  --surface-3:  #1c2433;
+  --border:     #21293a;
+  --border-dim: #161d2a;
+
+  /* Text */
+  --text:       #c9d1d9;
+  --text-dim:   #6e7b91;
+  --text-muted: #3d4a5c;
+  --text-bright:#e6edf3;
+
+  /* Regime colors */
+  --green:      #2ea043;
+  --green-bg:   rgba(46,160,67,.10);
+  --green-glow: rgba(46,160,67,.25);
+  --yellow:     #d29922;
+  --yellow-bg:  rgba(210,153,34,.10);
+  --yellow-glow:rgba(210,153,34,.25);
+  --orange:     #db6d28;
+  --orange-bg:  rgba(219,109,40,.10);
+  --orange-glow:rgba(219,109,40,.25);
+  --red:        #f85149;
+  --red-bg:     rgba(248,81,73,.10);
+  --red-glow:   rgba(248,81,73,.25);
+  --gray:       #6e7b91;
+  --gray-bg:    rgba(110,123,145,.08);
+
+  /* Accent */
+  --blue:       #58a6ff;
+  --blue-dim:   rgba(88,166,255,.12);
+
+  /* Type */
+  --font-mono:  'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-sans:  'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Sizes */
+  --radius:     8px;
+  --radius-sm:  5px;
+  --gap:        12px;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.dashboard {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px 12px 40px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-dim);
+}
+.header h1 {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: -0.02em;
+}
+.header .ts {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+
+/* Section titles */
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* Row spacing */
+.row { margin-bottom: 24px; }
+
+/* ============================================================
+   ROW 1 — MARKET PULSE
+   ============================================================ */
+.pulse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: var(--gap);
+}
+
+.pulse-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius);
+  padding: 14px 14px 12px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.pulse-card:hover { border-color: var(--border); }
+
+.pulse-card .label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+}
+.pulse-card .price {
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.2;
+}
+.pulse-card .change {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.pulse-card .ema-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.pulse-card .ema-tag {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+.pulse-card .ema-tag span { color: var(--text-dim); }
+
+/* Change color helper */
+.up   { color: var(--green);  }
+.down { color: var(--red);    }
+.flat { color: var(--text-dim);}
+
+/* Breadth card */
+.breadth-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.breadth-card .label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+}
+.breadth-bar-track {
+  height: 10px;
+  background: var(--surface-3);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.breadth-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width .6s ease;
+}
+.breadth-stats {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+}
+.breadth-val {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 6px;
+}
+
+/* ============================================================
+   ROW 2 — MARKET REGIME
+   ============================================================ */
+.regime-banner {
+  background: var(--surface-1);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius);
+  padding: 18px 18px 16px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.regime-banner .regime-label {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: var(--radius-sm);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.regime-banner .module-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.module-chip {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--blue-dim);
+  color: var(--blue);
+  border: 1px solid rgba(88,166,255,.2);
+}
+.module-chip.inactive {
+  background: var(--gray-bg);
+  color: var(--text-muted);
+  border-color: transparent;
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+.regime-banner .regime-desc {
+  width: 100%;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* Regime color classes */
+.regime-green  { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-glow); }
+.regime-yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-glow);}
+.regime-orange { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-glow);}
+.regime-red    { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-glow);   }
+.regime-gray   { background: var(--gray-bg);   color: var(--gray);   border: 1px solid rgba(110,123,145,.15); }
+
+/* ============================================================
+   ROW 3 — SECTOR REGIME GRID
+   ============================================================ */
+.sector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: var(--gap);
+}
+
+.sector-card {
+  background: var(--surface-1);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  border-left: 3px solid var(--border);
+  transition: border-color .2s, background .2s;
+}
+.sector-card:hover { background: var(--surface-2); }
+
+.sector-card .s-name {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sector-card .s-close {
+  font-family: var(--font-mono);
+  font-size: 1.0rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.sector-card .s-regime-tag {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 600;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  margin-bottom: 5px;
+}
+.sector-card .s-size-rule {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+/* Sector card border colors */
+.sector-card.s-green  { border-left-color: var(--green);  }
+.sector-card.s-yellow { border-left-color: var(--yellow); }
+.sector-card.s-orange { border-left-color: var(--orange); }
+.sector-card.s-red    { border-left-color: var(--red);    }
+.sector-card.s-gray   { border-left-color: var(--gray);   }
+
+/* ============================================================
+   ROW 4 — MODULE REFERENCE
+   ============================================================ */
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--gap);
+}
+.module-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.module-card .m-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.module-card .m-id {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--blue-dim);
+  color: var(--blue);
+}
+.module-card .m-name {
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+.module-card .m-row {
+  margin-bottom: 6px;
+}
+.module-card .m-key {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.module-card .m-val {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+.module-card .m-active-in {
+  margin-top: 8px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.module-card .m-regime-pill {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 1px 7px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  color: var(--text-dim);
+}
+
+/* ============================================================
+   ROW 5 — RISK RULES (compact)
+   ============================================================ */
+.risk-strip {
+  background: var(--surface-1);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.risk-item {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-dim);
+}
+.risk-item strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ============================================================
+   LOADING / ERROR STATES
+   ============================================================ */
+.loading-state, .error-state {
+  text-align: center;
+  padding: 80px 20px;
+  font-family: var(--font-mono);
+}
+.loading-state {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.loading-state .spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  margin-bottom: 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-state {
+  color: var(--red);
+  font-size: 0.82rem;
+}
+.error-state .retry-btn {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.error-state .retry-btn:hover { background: var(--surface-3); }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 600px) {
+  html { font-size: 13px; }
+  .dashboard { padding: 10px 8px 30px; }
+
+  .pulse-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .sector-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .module-grid {
+    grid-template-columns: 1fr;
+  }
+  .regime-banner {
+    padding: 14px;
+  }
+  .regime-banner .regime-label {
+    font-size: 1.0rem;
+  }
+}
+@media (max-width: 380px) {
+  .pulse-grid { grid-template-columns: 1fr; }
+  .sector-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="dashboard" id="app">
+  <!-- Populated by JS -->
+  <div class="loading-state" id="loading">
+    <div class="spinner"></div><br>
+    Loading dashboard data…
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  DASHBOARD RENDERER
+//  Reads dashboard_data.json (served from same repo via
+//  GitHub Pages) and renders 4 rows + risk strip.
+// ============================================================
+
+const DATA_URL = './dashboard_data.json';
+
+// ── Helpers ──
+
+function fmt(n, dec = 2) {
+  if (n == null) return '—';
+  return Number(n).toLocaleString('en-IN', {
+    minimumFractionDigits: dec,
+    maximumFractionDigits: dec,
+  });
+}
+
+function fmtInt(n) {
+  if (n == null) return '—';
+  return Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
+function changeClass(pct) {
+  if (pct == null) return 'flat';
+  return pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+}
+
+function changeSign(pct) {
+  if (pct == null) return '';
+  return pct > 0 ? '+' : '';
+}
+
+function regimeCSS(colour) {
+  const map = { green: 'regime-green', yellow: 'regime-yellow', orange: 'regime-orange', red: 'regime-red' };
+  return map[colour] || 'regime-gray';
+}
+
+function sectorCSS(colour) {
+  const map = { green: 's-green', yellow: 's-yellow', orange: 's-orange', red: 's-red' };
+  return map[colour] || 's-gray';
+}
+
+function breadthColor(pct) {
+  if (pct == null) return 'var(--gray)';
+  if (pct >= 60) return 'var(--green)';
+  if (pct >= 40) return 'var(--yellow)';
+  return 'var(--orange)';
+}
+
+// ── Render Functions ──
+
+function renderHeader(meta) {
+  return `
+    <div class="header">
+      <h1>Swing Dashboard</h1>
+      <span class="ts">${meta.generated_date || '—'} &nbsp;${meta.generated_time || ''}</span>
+    </div>`;
+}
+
+function renderPulseCard(item) {
+  if (!item) return '';
+  const cc = changeClass(item.change_pct);
+  return `
+    <div class="pulse-card">
+      <div class="label">${item.label || '—'}</div>
+      <div class="price">${fmt(item.current_close)}</div>
+      <div class="change ${cc}">${changeSign(item.change_pct)}${fmt(item.change_pct)}%</div>
+      <div class="ema-row">
+        <div class="ema-tag">20E <span>${fmt(item.ema_20, 0)}</span></div>
+        <div class="ema-tag">50E <span>${fmt(item.ema_50, 0)}</span></div>
+        <div class="ema-tag">200E <span>${fmt(item.ema_200, 0)}</span></div>
+      </div>
+    </div>`;
+}
+
+function renderBreadthCard(breadth) {
+  const pct = breadth?.breadth_pct;
+  const color = breadthColor(pct);
+  const barW = pct != null ? Math.max(2, Math.min(100, pct)) : 0;
+  const abv = breadth?.above_ema;
+  const comp = breadth?.total_computed;
+  const idx = breadth?.index_used || '—';
+
+  return `
+    <div class="breadth-card">
+      <div class="label">BREADTH — % Above 20 EMA</div>
+      <div class="breadth-val" style="color:${color}">
+        ${pct != null ? pct + '%' : 'N/A'}
+      </div>
+      <div class="breadth-bar-track">
+        <div class="breadth-bar-fill" style="width:${barW}%; background:${color}"></div>
+      </div>
+      <div class="breadth-stats">
+        <span>${abv != null ? abv + '/' + comp + ' stocks' : ''}</span>
+        <span>${idx}</span>
+      </div>
+    </div>`;
+}
+
+function renderPulseRow(pulse, breadth) {
+  return `
+    <div class="row">
+      <div class="section-label">Market Pulse</div>
+      <div class="pulse-grid">
+        ${renderPulseCard(pulse.nifty)}
+        ${renderPulseCard(pulse.bank_nifty)}
+        ${renderPulseCard(pulse.midcap)}
+        ${renderPulseCard(pulse.vix)}
+      </div>
+      <div style="margin-top:var(--gap)">
+        ${renderBreadthCard(breadth)}
+      </div>
+    </div>`;
+}
+
+function renderRegimeRow(regime) {
+  const css = regimeCSS(regime.colour);
+  const allModules = ['M1', 'M2', 'M3'];
+  const active = regime.active_modules || [];
+
+  const chips = allModules.map(m => {
+    const isActive = active.includes(m);
+    return `<span class="module-chip ${isActive ? '' : 'inactive'}">${m}</span>`;
+  }).join('');
+
+  return `
+    <div class="row">
+      <div class="section-label">Market Regime</div>
+      <div class="regime-banner">
+        <span class="regime-label ${css}">${regime.regime || 'Unknown'}</span>
+        <div class="module-chips">${chips}</div>
+        <div class="regime-desc">${regime.description || ''}</div>
+      </div>
+    </div>`;
+}
+
+function renderSectorRow(sectors) {
+  const order = [
+    'BANK', 'FIN_SERVICES', 'IT', 'AUTO', 'FMCG',
+    'METAL', 'PHARMA', 'REALTY', 'OIL_GAS', 'CONSUMER_DURABLES',
+  ];
+
+  let cards = '';
+  for (const sid of order) {
+    const s = sectors[sid];
+    if (!s) continue;
+    const css = sectorCSS(s.regime_colour);
+    const tagCSS = regimeCSS(s.regime_colour);
+    cards += `
+      <div class="sector-card ${css}">
+        <div class="s-name">${s.label}</div>
+        <div class="s-close">${fmt(s.current_close, 0)}</div>
+        <span class="s-regime-tag ${tagCSS}">${s.regime}</span>
+        <div class="s-size-rule">${s.position_size_rule}</div>
+      </div>`;
+  }
+
+  return `
+    <div class="row">
+      <div class="section-label">Sector Regimes</div>
+      <div class="sector-grid">${cards}</div>
+    </div>`;
+}
+
+function renderModuleRow(modules, activeModules) {
+  const ids = ['M1', 'M2', 'M3'];
+  const active = activeModules || [];
+
+  let cards = '';
+  for (const mid of ids) {
+    const m = modules[mid];
+    if (!m) continue;
+
+    const regimePills = (m.active_in || []).map(r =>
+      `<span class="m-regime-pill">${r}</span>`
+    ).join('');
+
+    cards += `
+      <div class="module-card">
+        <div class="m-header">
+          <span class="m-id">${mid}</span>
+          <span class="m-name">${m.name}</span>
+        </div>
+        <div class="m-row">
+          <div class="m-key">Entry</div>
+          <div class="m-val">${m.entry}</div>
+        </div>
+        <div class="m-row">
+          <div class="m-key">Stop</div>
+          <div class="m-val">${m.stop}</div>
+        </div>
+        <div class="m-row">
+          <div class="m-key">Target</div>
+          <div class="m-val">${m.target}</div>
+        </div>
+        <div class="m-row">
+          <div class="m-key">Hold</div>
+          <div class="m-val">${m.hold}</div>
+        </div>
+        <div class="m-active-in">${regimePills}</div>
+      </div>`;
+  }
+
+  return `
+    <div class="row">
+      <div class="section-label">Module Reference</div>
+      <div class="module-grid">${cards}</div>
+    </div>`;
+}
+
+function renderRiskStrip(rules) {
+  if (!rules) return '';
+  const items = [
+    ['Per Trade', rules.max_risk_per_trade],
+    ['Open Trades', rules.max_open_trades],
+    ['Portfolio Risk', rules.max_portfolio_risk],
+    ['Stop Method', rules.stop_loss_method],
+    ['Time Stop', rules.time_stop],
+    ['Loss Streak', rules.loss_streak_rule],
+    ['Monthly DD', rules.monthly_drawdown],
+  ];
+  const inner = items.map(([k, v]) =>
+    `<span class="risk-item"><strong>${k}:</strong> ${v}</span>`
+  ).join('');
+
+  return `
+    <div class="row">
+      <div class="section-label">Risk Rules</div>
+      <div class="risk-strip">${inner}</div>
+    </div>`;
+}
+
+// ── Main ──
+
+async function loadDashboard() {
+  const app = document.getElementById('app');
+
+  try {
+    const resp = await fetch(DATA_URL);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    const activeModules = data.market_regime?.active_modules || [];
+
+    app.innerHTML =
+      renderHeader(data.meta || {}) +
+      renderPulseRow(data.market_pulse || {}, data.breadth || {}) +
+      renderRegimeRow(data.market_regime || {}) +
+      renderSectorRow(data.sector_regimes || {}) +
+      renderModuleRow(data.modules || {}, activeModules) +
+      renderRiskStrip(data.risk_rules || {});
+
+  } catch (err) {
+    app.innerHTML = `
+      <div class="error-state">
+        Failed to load dashboard data.<br>
+        <small>${err.message}</small><br>
+        <button class="retry-btn" onclick="loadDashboard()">Retry</button>
+      </div>`;
+  }
+}
+
+loadDashboard();
+</script>
+</body>
+</html>
