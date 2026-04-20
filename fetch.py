@@ -97,120 +97,52 @@ NSE_INDEX_API = f"{NSE_BASE}/api/equity-stockIndices"
 def get_access_token() -> str:
     """
     Obtain an Upstox access token using the upstox-totp library.
-    Falls back to manual TOTP flow via requests if the library isn't available.
+
+    The upstox-totp library handles the full Upstox login flow internally:
+      1. Initiates auth with mobile number
+      2. Generates TOTP from secret
+      3. Validates OTP
+      4. Submits PIN
+      5. Exchanges auth code for access token
+
+    Environment variables consumed by the library:
+      UPSTOX_USERNAME, UPSTOX_PASSWORD, UPSTOX_PIN_CODE,
+      UPSTOX_TOTP_SECRET, UPSTOX_CLIENT_ID, UPSTOX_CLIENT_SECRET,
+      UPSTOX_REDIRECT_URI
+
+    Note: UPSTOX_PASSWORD is set to the PIN value in the workflow.
+    The current Upstox login flow is Mobile → TOTP → PIN (no separate password),
+    but the library still requires this field.
     """
-    # --- Try the upstox-totp library first ---
+    from upstox_totp import UpstoxTOTP
+
+    # Enable debug so we can see exactly what step fails if there's an issue
+    debug_mode = os.environ.get("UPSTOX_DEBUG", "false").lower() in ("true", "1")
+    print(f"[AUTH] Initialising upstox-totp (debug={debug_mode}) ...")
+
     try:
-        from upstox_totp import UpstoxTOTP
-        print("[AUTH] Using upstox-totp library ...")
-        upx = UpstoxTOTP()
+        upx = UpstoxTOTP(debug=debug_mode)
         resp = upx.app_token.get_access_token()
+
         if resp.success and resp.data:
             print(f"[AUTH] Token obtained for user: {resp.data.user_id}")
             return resp.data.access_token
         else:
-            print(f"[AUTH] upstox-totp failed: {getattr(resp, 'error', 'unknown')}")
-            raise RuntimeError("upstox-totp token generation failed")
-    except ImportError:
-        print("[AUTH] upstox-totp not installed — falling back to manual TOTP flow")
+            error_msg = getattr(resp, "error", "unknown error")
+            raise RuntimeError(f"Token generation failed: {error_msg}")
+
     except Exception as e:
-        print(f"[AUTH] upstox-totp error: {e} — falling back to manual TOTP flow")
-
-    # --- Fallback: manual TOTP login ---
-    return _manual_totp_login()
-
-
-def _manual_totp_login() -> str:
-    """
-    Manual TOTP login flow using requests + pyotp.
-    Upstox login: Mobile → TOTP → PIN (no password).
-    """
-    import pyotp
-
-    username      = os.environ["UPSTOX_USERNAME"]
-    pin           = os.environ["UPSTOX_PIN_CODE"]
-    totp_secret   = os.environ["UPSTOX_TOTP_SECRET"]
-    client_id     = os.environ["UPSTOX_CLIENT_ID"]
-    client_secret = os.environ["UPSTOX_CLIENT_SECRET"]
-    redirect_uri  = os.environ["UPSTOX_REDIRECT_URI"]
-
-    session = requests.Session()
-    totp = pyotp.TOTP(totp_secret)
-
-    # Step 1 — Initiate auth dialog to get session cookies
-    auth_url = (
-        f"https://api.upstox.com/v2/login/authorization/dialog"
-        f"?response_type=code&client_id={client_id}"
-        f"&redirect_uri={quote(redirect_uri, safe='')}"
-    )
-    print("[AUTH] Step 1: Initiating auth dialog ...")
-    session.get(auth_url, allow_redirects=True, timeout=30)
-
-    # Step 2 — Submit mobile number + TOTP (TOTP is the credential, no password)
-    print("[AUTH] Step 2: Submitting mobile + TOTP ...")
-    r2 = session.post(
-        "https://api.upstox.com/v2/login/authorization/step1",
-        json={
-            "mobileNumber": username,
-            "otp": totp.now(),
-        },
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        timeout=30,
-    )
-    if r2.status_code != 200:
-        raise RuntimeError(f"Step 1 login failed: {r2.status_code} {r2.text[:300]}")
-
-    # Step 3 — Submit PIN
-    print("[AUTH] Step 3: Submitting PIN ...")
-    r3 = session.post(
-        "https://api.upstox.com/v2/login/authorization/step2",
-        json={"pin": pin},
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        timeout=30,
-    )
-
-    # Extract auth code from response body or redirect
-    auth_code = None
-    if r3.status_code in (200, 302):
-        try:
-            data = r3.json()
-            auth_code = data.get("data", {}).get("code") or data.get("code")
-        except Exception:
-            pass
-        if not auth_code and "Location" in r3.headers:
-            from urllib.parse import parse_qs, urlparse
-            loc = r3.headers["Location"]
-            auth_code = parse_qs(urlparse(loc).query).get("code", [None])[0]
-
-    if not auth_code:
-        raise RuntimeError(f"No auth code. Status: {r3.status_code}, Body: {r3.text[:500]}")
-
-    # Step 4 — Exchange code for access token
-    print("[AUTH] Step 4: Exchanging code for token ...")
-    r4 = requests.post(
-        "https://api.upstox.com/v2/login/authorization/token",
-        data={
-            "code": auth_code,
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "redirect_uri": redirect_uri,
-            "grant_type": "authorization_code",
-        },
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json",
-        },
-        timeout=30,
-    )
-    if r4.status_code != 200:
-        raise RuntimeError(f"Token exchange failed: {r4.status_code} {r4.text[:300]}")
-
-    token = r4.json().get("access_token")
-    if not token:
-        raise RuntimeError(f"No access_token in response: {r4.text[:300]}")
-
-    print("[AUTH] Access token obtained")
-    return token
+        print(f"\n[AUTH] ✗ Authentication failed: {e}")
+        print("[AUTH]")
+        print("[AUTH] Troubleshooting checklist:")
+        print("[AUTH]   1. Is UPSTOX_TOTP_SECRET the raw key (letters+digits), not the QR URL?")
+        print("[AUTH]   2. Is UPSTOX_PIN_CODE your 6-digit login PIN?")
+        print("[AUTH]   3. Is UPSTOX_USERNAME your 10-digit mobile number?")
+        print("[AUTH]   4. Are UPSTOX_CLIENT_ID and UPSTOX_CLIENT_SECRET from the correct app?")
+        print("[AUTH]   5. Does UPSTOX_REDIRECT_URI match what's registered in the Upstox app?")
+        print("[AUTH]   6. Have you exceeded login attempts? Wait 30 min and retry.")
+        print("[AUTH]   7. Run the workflow again with UPSTOX_DEBUG=true for detailed logs.")
+        raise
 
 
 # ---------------------------------------------------------------------------
