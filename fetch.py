@@ -14,13 +14,20 @@ Runs daily via GitHub Actions at 3:30 PM IST.
 6. Writes dashboard_data.json consumed by the GitHub Pages dashboard.
 
 Environment variables (set as GitHub Secrets):
-  UPSTOX_USERNAME      — Upstox registered mobile number
-  UPSTOX_PASSWORD      — Upstox login password
-  UPSTOX_PIN           — 6-digit PIN
-  UPSTOX_TOTP_SECRET   — TOTP secret from Upstox 2FA setup
-  UPSTOX_CLIENT_ID     — API app key
+  UPSTOX_USERNAME      — Upstox registered mobile number (user ID)
+  UPSTOX_PIN_CODE      — 6-digit login PIN
+  UPSTOX_TOTP_SECRET   — TOTP secret key from Upstox authenticator setup
+  UPSTOX_CLIENT_ID     — API app key (from Upstox Developer Portal)
   UPSTOX_CLIENT_SECRET — API app secret
   UPSTOX_REDIRECT_URI  — Redirect URI registered in Upstox app
+
+Upstox login flow: Mobile number → TOTP (auto-generated) → 6-digit PIN
+There is no separate password — TOTP serves as the authentication credential.
+
+Note on upstox-totp library:
+  The library still expects UPSTOX_PASSWORD in its env config.
+  Set it to any non-empty placeholder (e.g. "x") — it's a legacy field
+  and is not used in the current TOTP-based login flow.
 """
 
 import json
@@ -116,12 +123,12 @@ def get_access_token() -> str:
 def _manual_totp_login() -> str:
     """
     Manual TOTP login flow using requests + pyotp.
+    Upstox login: Mobile → TOTP → PIN (no password).
     """
     import pyotp
 
     username      = os.environ["UPSTOX_USERNAME"]
-    password      = os.environ["UPSTOX_PASSWORD"]
-    pin           = os.environ["UPSTOX_PIN"]
+    pin           = os.environ["UPSTOX_PIN_CODE"]
     totp_secret   = os.environ["UPSTOX_TOTP_SECRET"]
     client_id     = os.environ["UPSTOX_CLIENT_ID"]
     client_secret = os.environ["UPSTOX_CLIENT_SECRET"]
@@ -139,13 +146,12 @@ def _manual_totp_login() -> str:
     print("[AUTH] Step 1: Initiating auth dialog ...")
     session.get(auth_url, allow_redirects=True, timeout=30)
 
-    # Step 2 — Submit credentials + TOTP
-    print("[AUTH] Step 2: Submitting credentials + TOTP ...")
+    # Step 2 — Submit mobile number + TOTP (TOTP is the credential, no password)
+    print("[AUTH] Step 2: Submitting mobile + TOTP ...")
     r2 = session.post(
         "https://api.upstox.com/v2/login/authorization/step1",
         json={
             "mobileNumber": username,
-            "password": password,
             "otp": totp.now(),
         },
         headers={"Content-Type": "application/json", "Accept": "application/json"},
