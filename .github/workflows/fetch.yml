@@ -49,7 +49,7 @@ jobs:
           UPSTOX_CLIENT_ID:     ${{ secrets.UPSTOX_CLIENT_ID }}
           UPSTOX_CLIENT_SECRET: ${{ secrets.UPSTOX_CLIENT_SECRET }}
           UPSTOX_REDIRECT_URI:  ${{ secrets.UPSTOX_REDIRECT_URI }}
-          UPSTOX_DEBUG:         "true"                           # Set to "false" once auth is working
+          UPSTOX_DEBUG:         "false"                          # Set to "true" to debug auth issues
           OUTPUT_PATH:          dashboard_data.json
         run: python fetch.py
 
