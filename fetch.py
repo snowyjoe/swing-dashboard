@@ -94,60 +94,55 @@ NSE_INDEX_API = f"{NSE_BASE}/api/equity-stockIndices"
 # 2. AUTHENTICATION — Upstox TOTP
 # ---------------------------------------------------------------------------
 
-def _patch_upstox_models():
+def _patch_upstox_response_parsing():
     """
-    Patch upstox-totp library's Pydantic models to handle missing fields.
+    Monkey-patch the upstox-totp library so that missing fields in
+    Upstox's API response don't crash Pydantic validation.
 
-    Known issue: Upstox API no longer returns a 'poa' field in the token
-    response, but the library's model marks it as required. This causes a
-    ValidationError even though auth succeeds.  We make 'poa' optional
-    before the library ever tries to parse a response.
+    The bug: Upstox no longer returns a 'poa' field in the token
+    response, but the library's AccessTokenResponse model requires it.
+    Auth succeeds (HTTP 200 with valid token) but parsing crashes.
+
+    The fix: intercept model_validate on AccessTokenResponse and inject
+    default values for any missing fields before the original validator
+    runs.  This is more reliable than patching annotations, because
+    Pydantic v2 compiles validators at class-creation time.
     """
-    from typing import Optional
-
     try:
-        # Strategy: scan every Pydantic model the library defines and make
-        # 'poa' optional wherever it appears.
-        import upstox_totp.models as models_mod
+        from upstox_totp._api.app_token import AccessTokenResponse
 
-        for attr_name in dir(models_mod):
-            cls = getattr(models_mod, attr_name)
-            if not isinstance(cls, type) or not hasattr(cls, "model_fields"):
-                continue
-            if "poa" not in cls.model_fields:
-                continue
+        _orig = AccessTokenResponse.model_validate.__func__
 
-            # Update the annotation to Optional and set a default
-            original_type = cls.__annotations__.get("poa", bool)
-            # Unwrap if already Optional
-            if hasattr(original_type, "__origin__"):
-                base = original_type
-            else:
-                base = original_type
-            cls.__annotations__["poa"] = Optional[base]
-            cls.model_fields["poa"].default = None
-            cls.model_rebuild(force=True)
-            print(f"[AUTH] Patched {attr_name}.poa → Optional (library compat fix)")
+        # Fields that Upstox may omit but the library requires
+        _defaults = {"poa": False}
+
+        @classmethod
+        def _tolerant_validate(cls, obj, *a, **kw):
+            # obj is a dict from upstox_response.model_dump()
+            if isinstance(obj, dict):
+                data = obj.get("data")
+                if isinstance(data, dict):
+                    for field, default in _defaults.items():
+                        if field not in data:
+                            data[field] = default
+            return _orig(cls, obj, *a, **kw)
+
+        AccessTokenResponse.model_validate = _tolerant_validate
+        print("[AUTH] Patched AccessTokenResponse.model_validate (poa fix)")
 
     except Exception as e:
-        # Non-fatal: if patching fails we still try the normal path
-        print(f"[AUTH] Model patch skipped: {e}")
+        print(f"[AUTH] Response parsing patch failed: {e}")
 
 
 def get_access_token() -> str:
     """
-    Obtain an Upstox access token using the upstox-totp library.
-
-    The library handles the full login flow:
-      Mobile → TOTP → PIN → auth code → access token
-
-    Before calling the library we patch its response models so that
-    missing fields (like 'poa') don't cause a crash.
+    Obtain an Upstox access token via the upstox-totp library.
+    Patches the library's response parser first so missing fields
+    don't cause a crash.
     """
     from upstox_totp import UpstoxTOTP
 
-    # Fix library model before any API call
-    _patch_upstox_models()
+    _patch_upstox_response_parsing()
 
     debug_mode = os.environ.get("UPSTOX_DEBUG", "false").lower() in ("true", "1")
     print(f"[AUTH] Initialising upstox-totp (debug={debug_mode}) ...")
@@ -164,74 +159,13 @@ def get_access_token() -> str:
             raise RuntimeError(f"Token generation failed: {error_msg}")
 
     except Exception as e:
-        error_str = str(e)
-
-        # If the poa patch didn't stick, try brute-force extraction
-        if "poa" in error_str and "Field required" in error_str:
-            print("[AUTH] Model patch didn't fully resolve 'poa' issue.")
-            print("[AUTH] Attempting direct token extraction ...")
-            token = _extract_token_fallback(upx)
-            if token:
-                return token
-
         print(f"\n[AUTH] ✗ Authentication failed: {e}")
-        print("[AUTH]")
-        print("[AUTH] Troubleshooting checklist:")
+        print("[AUTH] Troubleshooting:")
         print("[AUTH]   1. Is UPSTOX_TOTP_SECRET the raw key (letters+digits)?")
         print("[AUTH]   2. Is UPSTOX_PIN_CODE your 6-digit login PIN?")
-        print("[AUTH]   3. Do UPSTOX_CLIENT_ID / SECRET / REDIRECT_URI match your app?")
+        print("[AUTH]   3. Do CLIENT_ID / SECRET / REDIRECT_URI match your app?")
         print("[AUTH]   4. Wait 30 min if you've hit attempt limits, then retry.")
         raise
-
-
-def _extract_token_fallback(upx) -> str | None:
-    """
-    Last-resort fallback: re-do only the token exchange step using the
-    library's session (which already has cookies and completed the login).
-
-    If the library crashed during response parsing, the OAuth auth-code
-    exchange already happened.  We replay the token exchange using the
-    same session — Upstox may return a fresh token for the same session.
-    """
-    try:
-        import json as _json
-        from urllib.parse import quote as _q
-
-        client_id     = os.environ["UPSTOX_CLIENT_ID"]
-        client_secret = os.environ["UPSTOX_CLIENT_SECRET"]
-        redirect_uri  = os.environ["UPSTOX_REDIRECT_URI"]
-
-        # The library's session (curl_cffi) should still be authenticated
-        session = upx.session
-
-        # Try to hit the token endpoint again — some Upstox sessions allow
-        # re-issuing a token without a fresh auth code.
-        r = session.post(
-            "https://api.upstox.com/v2/login/authorization/token",
-            data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code",
-                "code": "reuse",  # may or may not work
-            },
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json",
-            },
-        )
-
-        if r.status_code == 200:
-            data = r.json()
-            token = data.get("access_token")
-            if token:
-                print(f"[AUTH] Fallback succeeded — token obtained")
-                return token
-
-    except Exception as ex:
-        print(f"[AUTH] Fallback extraction failed: {ex}")
-
-    return None
 
 
 # ---------------------------------------------------------------------------
