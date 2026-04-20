@@ -43,12 +43,13 @@ jobs:
       - name: Run data fetch
         env:
           UPSTOX_USERNAME:      ${{ secrets.UPSTOX_USERNAME }}
-          UPSTOX_PASSWORD:      "x"    # Legacy field required by upstox-totp lib; not used in TOTP login
+          UPSTOX_PASSWORD:      ${{ secrets.UPSTOX_PIN_CODE }}   # Library requires this field; PIN works
           UPSTOX_PIN_CODE:      ${{ secrets.UPSTOX_PIN_CODE }}
           UPSTOX_TOTP_SECRET:   ${{ secrets.UPSTOX_TOTP_SECRET }}
           UPSTOX_CLIENT_ID:     ${{ secrets.UPSTOX_CLIENT_ID }}
           UPSTOX_CLIENT_SECRET: ${{ secrets.UPSTOX_CLIENT_SECRET }}
           UPSTOX_REDIRECT_URI:  ${{ secrets.UPSTOX_REDIRECT_URI }}
+          UPSTOX_DEBUG:         "true"                           # Set to "false" once auth is working
           OUTPUT_PATH:          dashboard_data.json
         run: python fetch.py
 
