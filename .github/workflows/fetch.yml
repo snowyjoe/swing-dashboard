@@ -58,7 +58,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add dashboard_data.json
+          git add dashboard_data.json regime_history.json breadth_history.json
           # Only commit if there are changes (avoids empty commits on holidays)
           git diff --cached --quiet || git commit -m "data: update dashboard $(date -u +%Y-%m-%d)"
           git push
