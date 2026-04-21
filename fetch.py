@@ -418,7 +418,7 @@ def fetch_candles(
 
 def fetch_all_index_data(access_token: str) -> dict[str, list[list]]:
     from_date = (datetime.now() - timedelta(days=INDEX_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
-    to_date = datetime.now().strftime("%Y-%m-%d")
+    to_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     result: dict[str, list[list]] = {}
     keys = list(ALL_INDEX_KEYS.keys())
@@ -515,7 +515,8 @@ def _fetch_stock_above_ema(args) -> tuple[str, bool | None]:
 
 def compute_market_breadth(constituents: list[dict], access_token: str) -> dict:
     from_date = (datetime.now() - timedelta(days=BREADTH_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
-    to_date = datetime.now().strftime("%Y-%m-%d")
+    to_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+
 
     print(f"\n[BREADTH] Computing breadth for {len(constituents)} stocks "
           f"({from_date} to {to_date}, {BREADTH_WORKERS} threads)\n")
