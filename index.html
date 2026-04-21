@@ -43,8 +43,9 @@
   .header {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: flex-start;
     padding: 0 2px 14px 2px;
+    gap: 16px;
   }
   .header h1 {
     font-size: 12px;
@@ -52,11 +53,40 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--text-2);
+    padding-top: 2px;
   }
   .header .meta {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 2px 10px;
     font-family: var(--mono);
     font-size: 11px;
+    color: var(--text-2);
+    text-align: right;
+  }
+  .header .meta .m-key {
+    font-weight: 700;
     color: var(--text-3);
+    letter-spacing: 0.06em;
+  }
+  .header .meta .m-val { color: var(--text); }
+  .header .meta .m-val.warn {
+    color: var(--correct);
+    font-weight: 700;
+  }
+  .header .meta .m-val.ok {
+    color: var(--bull);
+    font-weight: 600;
+  }
+
+  /* "as of" subtitle under key card labels */
+  .card-label .as-of {
+    color: var(--text-3);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    font-size: 10px;
+    margin-left: 8px;
   }
 
   .card {
@@ -230,38 +260,92 @@
     flex-shrink: 0;
   }
 
+  /* ---------- Today's Mode (hero block inside Playbook) ---------- */
+  .today-mode {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    row-gap: 6px;
+    column-gap: 14px;
+    align-items: baseline;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid var(--border-2);
+    border-radius: 6px;
+    margin-bottom: 14px;
+  }
+  .today-mode .tm-key {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--text-3);
+  }
+  .today-mode .tm-val {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.35;
+  }
+  .today-mode .tm-val.mode {
+    font-size: 17px;
+    font-weight: 700;
+    font-family: var(--mono);
+    letter-spacing: 0.01em;
+  }
+  .today-mode .tm-val.mode.trade     { color: var(--bull);    }
+  .today-mode .tm-val.mode.reduce    { color: var(--side);    }
+  .today-mode .tm-val.mode.selective { color: var(--recov);   }
+  .today-mode .tm-val.mode.stand     { color: var(--chop);    }
+  .today-mode .tm-val.mode.no        { color: var(--correct); }
+  .today-mode .tm-val.mode.m2only    { color: var(--side);    }
+
   /* ---------- Scan Here ---------- */
-  .scan { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .scan { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
   .scan-col .scan-title {
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .scan-col .scan-sub {
+    font-size: 10px;
+    color: var(--text-3);
     margin-bottom: 8px;
+    line-height: 1.3;
   }
-  .scan-col.strong .scan-title { color: var(--bull);    }
-  .scan-col.weak   .scan-title { color: var(--correct); }
-  .scan-list { display: flex; gap: 6px; }
+  .scan-col.ready    .scan-title { color: var(--bull);    }
+  .scan-col.extended .scan-title { color: var(--side);    }
+  .scan-col.weak     .scan-title { color: var(--correct); }
+  .scan-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
   .scan-item {
-    flex: 1;
-    padding: 9px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7px 10px;
     border-radius: 4px;
-    text-align: center;
   }
-  .scan-item.strong { background: var(--bull-bg);    color: var(--bull);    }
-  .scan-item.weak   { background: var(--correct-bg); color: var(--correct); }
+  .scan-item.ready    { background: var(--bull-bg);    color: var(--bull);    }
+  .scan-item.extended { background: var(--side-bg);    color: var(--side);    }
+  .scan-item.weak     { background: var(--correct-bg); color: var(--correct); }
   .scan-item .name {
-    display: block;
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
   }
   .scan-item .val {
-    display: block;
     font-family: var(--mono);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
-    margin-top: 3px;
+  }
+  .scan-empty {
+    padding: 7px 10px;
+    font-size: 11px;
+    color: var(--text-3);
+    font-style: italic;
   }
 
   /* ---------- Market pulse ---------- */
@@ -406,6 +490,9 @@
     .play-row .play-hint { grid-column: 2; font-size: 10px; }
     .transition  { flex-direction: column; align-items: flex-start; gap: 12px; }
     .trans-day   { min-width: 50px; font-size: 9px; }
+    .header      { flex-direction: column; gap: 10px; }
+    .header .meta { text-align: left; }
+    .today-mode  { grid-template-columns: 64px 1fr; }
   }
 </style>
 </head>
@@ -433,6 +520,39 @@ function signed(n, d) {
   const v = Number(n);
   return (v >= 0 ? '+' : '') + v.toFixed(d) + '%';
 }
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Map Today's Mode string → CSS class for colour
+function modeClass(modeStr) {
+  const m = (modeStr || '').toUpperCase();
+  if (m.startsWith('TRADE'))        return 'trade';
+  if (m.startsWith('REDUCE'))       return 'reduce';
+  if (m.startsWith('SELECTIVE'))    return 'selective';
+  if (m.startsWith('STAND'))        return 'stand';
+  if (m.startsWith('NO '))          return 'no';
+  if (m.startsWith('M2 ONLY'))      return 'm2only';
+  if (m.startsWith('OBSERVE'))      return 'selective';
+  return '';
+}
+
+function renderHeader(meta) {
+  const asOf     = escapeHtml(meta.data_as_of_label || '—');
+  const updated  = escapeHtml(`${meta.generated_date} · ${meta.generated_time}`);
+  const statText = escapeHtml(meta.data_status_text || '');
+  const statCls  = meta.is_intraday_partial ? 'warn' : 'ok';
+  return `
+    <div class="header">
+      <h1>Swing Dashboard</h1>
+      <div class="meta">
+        <span class="m-key">DATA AS OF</span><span class="m-val">${asOf}</span>
+        <span class="m-key">UPDATED</span>   <span class="m-val">${updated}</span>
+        <span class="m-key">STATUS</span>    <span class="m-val ${statCls}">${statText}</span>
+      </div>
+    </div>`;
+}
 
 function renderTransition(t) {
   const days = t.history.map((d, i) => {
@@ -455,11 +575,24 @@ function renderTransition(t) {
 
 function renderPlaybook(p) {
   const override = p.override
-    ? `<div class="play-override">⚠ ${p.override}</div>`
+    ? `<div class="play-override">⚠ ${escapeHtml(p.override)}</div>`
     : '';
 
+  // Today's Mode — the single most important block the trader reads.
+  const tm = p.today_mode || {};
+  const mCls = modeClass(tm.mode);
+  const todayMode = tm.mode ? `
+    <div class="today-mode">
+      <div class="tm-key">MODE</div>
+      <div class="tm-val mode ${mCls}">${escapeHtml(tm.mode)}</div>
+      <div class="tm-key">WAIT FOR</div>
+      <div class="tm-val">${escapeHtml(tm.wait_for || '—')}</div>
+      <div class="tm-key">DON'T</div>
+      <div class="tm-val">${escapeHtml(tm.dont || '—')}</div>
+    </div>` : '';
+
   const runHtml = (p.run && p.run.length)
-    ? p.run.map((r, i) => {
+    ? p.run.map((r) => {
         const tag = r.priority === 'primary' ? 'priority' : (r.priority || 'secondary');
         return `${r.module}<span class="tag">${tag}</span>`;
       }).join('<span class="sep">·</span>')
@@ -477,6 +610,7 @@ function renderPlaybook(p) {
     <div class="card playbook">
       <div class="card-label">Today's Playbook</div>
       ${override}
+      ${todayMode}
       <div class="play-row">
         <div class="play-key">RUN</div>
         <div class="play-val run">${runHtml}</div>
@@ -504,20 +638,20 @@ function renderPlaybook(p) {
       </div>
       <div class="play-footer">
         <span><strong>Cap:</strong> ${p.cap_new_entries} new entries</span>
-        <span><strong>Size:</strong> ${p.size_rule}${p.size_reason ? ' — ' + p.size_reason : ''}</span>
       </div>
     </div>`;
 }
 
-function renderInsight(insights) {
+function renderInsight(insights, fallbackText) {
   if (!insights || insights.length === 0) {
+    const fb = escapeHtml(fallbackText || 'Regime unchanged — follow the playbook.');
     return `
       <div class="card insight">
         <div class="card-label">Insight</div>
-        <ul><li>No significant changes — continue current regime playbook.</li></ul>
+        <ul><li>${fb}</li></ul>
       </div>`;
   }
-  const items = insights.slice(0, 3).map(i => `<li>${i.text}</li>`).join('');
+  const items = insights.slice(0, 3).map(i => `<li>${escapeHtml(i.text)}</li>`).join('');
   return `
     <div class="card insight">
       <div class="card-label">Insight</div>
@@ -525,51 +659,74 @@ function renderInsight(insights) {
     </div>`;
 }
 
-function renderScan(sc) {
+function renderScan(sc, asOfLabel) {
   const mkItem = (s, cls) =>
-    `<div class="scan-item ${cls}"><span class="name">${s.sector.replace(/_/g, ' ')}</span><span class="val">${signed(s.distance_pct, 1)}</span></div>`;
-  const strong = sc.strong.map(s => mkItem(s, 'strong')).join('');
-  const weak   = sc.weak.map(s => mkItem(s, 'weak')).join('');
+    `<div class="scan-item ${cls}">
+      <span class="name">${s.sector.replace(/_/g, ' ')}</span>
+      <span class="val">${signed(s.distance_pct, 1)}</span>
+    </div>`;
+
+  const mkList = (items, cls) =>
+    (items && items.length)
+      ? items.map(s => mkItem(s, cls)).join('')
+      : `<div class="scan-empty">— none today —</div>`;
+
+  const thresh = sc.ready_threshold_pct != null ? sc.ready_threshold_pct : 3;
+  const asOf = asOfLabel ? `<span class="as-of">as of ${escapeHtml(asOfLabel)}</span>` : '';
+
   return `
     <div class="card">
-      <div class="card-label">Scan Here · distance from 20 EMA</div>
+      <div class="card-label">Scan Here · distance from 20 EMA ${asOf}</div>
       <div class="scan">
-        <div class="scan-col strong">
-          <div class="scan-title">Strong · M1 / M3</div>
-          <div class="scan-list">${strong}</div>
+        <div class="scan-col ready">
+          <div class="scan-title">Ready · M1 / M3</div>
+          <div class="scan-sub">0% to +${thresh}% above 20 EMA — scan here today</div>
+          <div class="scan-list">${mkList(sc.ready, 'ready')}</div>
+        </div>
+        <div class="scan-col extended">
+          <div class="scan-title">Extended · wait</div>
+          <div class="scan-sub">&gt; +${thresh}% above 20 EMA — wait for pullback, don't chase</div>
+          <div class="scan-list">${mkList(sc.extended, 'extended')}</div>
         </div>
         <div class="scan-col weak">
-          <div class="scan-title">Weak · M2</div>
-          <div class="scan-list">${weak}</div>
+          <div class="scan-title">Weak · M2 only</div>
+          <div class="scan-sub">Below 20 EMA — M2 in Recovering / Correcting regime</div>
+          <div class="scan-list">${mkList(sc.weak, 'weak')}</div>
         </div>
       </div>
     </div>`;
 }
 
-function renderPulse(m, br) {
+function renderPulse(m, br, asOfLabel) {
   const cells = ['nifty', 'bank_nifty', 'midcap', 'vix'].map(k => {
-    const q = m[k];
-    const cls = q.change_pct >= 0 ? 'pos' : 'neg';
+    const q = m[k] || {};
+    const cls = (q.change_pct || 0) >= 0 ? 'pos' : 'neg';
     return `<div class="pulse-cell">
-      <div class="p-label">${q.label}</div>
+      <div class="p-label">${escapeHtml(q.label || k)}</div>
       <div class="p-val">${fmt(q.current_close, 2)}</div>
       <div class="p-change ${cls}">${signed(q.change_pct, 2)}</div>
     </div>`;
   }).join('');
 
-  return `
-    <div class="card">
-      <div class="card-label">Market Pulse</div>
-      <div class="pulse-grid">${cells}</div>
+  const bp = br && br.breadth_pct;
+  const breadthRow = (bp != null) ? `
       <div class="breadth-row">
         <span class="b-lbl">BREADTH</span>
-        <div class="breadth-bar"><div class="breadth-fill" style="width: ${br.breadth_pct}%"></div></div>
-        <span>${br.breadth_pct.toFixed(1)}% · ${br.above_ema}/${br.total_constituents}</span>
-      </div>
+        <div class="breadth-bar"><div class="breadth-fill" style="width: ${bp}%"></div></div>
+        <span>${bp.toFixed(1)}% · ${br.above_ema}/${br.total_constituents}</span>
+      </div>` : '';
+
+  const asOf = asOfLabel ? `<span class="as-of">as of ${escapeHtml(asOfLabel)}</span>` : '';
+
+  return `
+    <div class="card">
+      <div class="card-label">Market Pulse ${asOf}</div>
+      <div class="pulse-grid">${cells}</div>
+      ${breadthRow}
     </div>`;
 }
 
-function renderSectors(secs) {
+function renderSectors(secs, asOfLabel) {
   const cells = Object.entries(secs).map(([name, s]) => {
     const cls = (s.regime_colour || REGIME_COLOUR[s.regime] || 'side').toLowerCase();
     return `<div class="sect-cell ${cls}">
@@ -577,9 +734,10 @@ function renderSectors(secs) {
       <div class="s-change">${signed(s.change_pct, 2)}</div>
     </div>`;
   }).join('');
+  const asOf = asOfLabel ? `<span class="as-of">as of ${escapeHtml(asOfLabel)}</span>` : '';
   return `
     <div class="card">
-      <div class="card-label">Sectors</div>
+      <div class="card-label">Sectors ${asOf}</div>
       <div class="sector-grid">${cells}</div>
     </div>`;
 }
@@ -598,17 +756,15 @@ function renderRisk(r) {
 
 function render(data) {
   const app = document.getElementById('app');
+  const asOf = data.meta && data.meta.data_as_of_label;
   app.innerHTML = `
-    <div class="header">
-      <h1>Swing Dashboard</h1>
-      <div class="meta">${data.meta.generated_date} · ${data.meta.generated_time}</div>
-    </div>
+    ${renderHeader(data.meta)}
     ${renderTransition(data.regime_transition)}
     ${renderPlaybook(data.playbook)}
-    ${renderInsight(data.market_insight)}
-    ${renderScan(data.scan_here)}
-    ${renderPulse(data.market_pulse, data.breadth)}
-    ${renderSectors(data.sector_regimes)}
+    ${renderInsight(data.market_insight, data.insight_fallback_text)}
+    ${renderScan(data.scan_here, asOf)}
+    ${renderPulse(data.market_pulse, data.breadth, asOf)}
+    ${renderSectors(data.sector_regimes, asOf)}
     ${renderRisk(data.risk_rules)}
   `;
 }
