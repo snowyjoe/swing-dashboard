@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Swing Trading Dashboard — Data Fetch Script (fetch.py)
-======================================================
+Swing Trading Dashboard — Data Fetch Script (fetch.py)  v1.2
+=============================================================
 Runs daily via GitHub Actions at 3:30 PM IST.
 
 1. Authenticates with Upstox via TOTP (zero manual intervention).
@@ -11,7 +11,9 @@ Runs daily via GitHub Actions at 3:30 PM IST.
    to compute real market breadth (% stocks above 20 EMA).
 4. Computes 20 / 50 / 200 EMAs for each index.
 5. Classifies overall market regime and per-sector regime.
-6. Writes dashboard_data.json consumed by the GitHub Pages dashboard.
+6. Computes decision layer: regime transition, insight, playbook, scan here.
+7. Writes dashboard_data.json consumed by the GitHub Pages dashboard.
+8. Appends today's regime + breadth to rolling history files.
 
 Environment variables (set as GitHub Secrets):
   UPSTOX_USERNAME      — Upstox registered mobile number (user ID)
@@ -21,6 +23,11 @@ Environment variables (set as GitHub Secrets):
   UPSTOX_CLIENT_SECRET — API app secret
   UPSTOX_REDIRECT_URI  — Redirect URI registered in Upstox app
 
+Optional output paths:
+  OUTPUT_PATH           — default: dashboard_data.json
+  REGIME_HISTORY_PATH   — default: regime_history.json
+  BREADTH_HISTORY_PATH  — default: breadth_history.json
+
 Upstox login flow: Mobile number → TOTP (auto-generated) → 6-digit PIN
 There is no separate password — TOTP serves as the authentication credential.
 
@@ -28,6 +35,10 @@ Note on upstox-totp library:
   The library still expects UPSTOX_PASSWORD in its env config.
   Set it to any non-empty placeholder (e.g. "x") — it's a legacy field
   and is not used in the current TOTP-based login flow.
+
+Note on cron timing (VIX N-1 data lag):
+  If VIX is one day behind, shift the workflow cron to 16:30 or 17:00 IST.
+  Upstox sometimes finalises VIX EOD candles slightly after 15:30.
 """
 
 import json
@@ -37,6 +48,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+from pathlib import Path
 from urllib.parse import quote
 
 import requests
@@ -46,32 +58,33 @@ import requests
 # ---------------------------------------------------------------------------
 
 # --- Desired indices: friendly_id → search terms + label ---
-# The "search" list contains substrings to match against Upstox's
-# instrument names (case-insensitive).  The resolver picks the best match.
+# Search terms use the EXACT Upstox lowercase names so exact-match hits on
+# the first pass. Substring fallback is kept only for future name changes.
+# Based on real names from Upstox instruments file (see log for full list).
 
 MARKET_SYMBOLS_WANTED = {
-    "NIFTY_50":   {"search": ["Nifty 50"],                      "label": "Nifty 50",        "type": "market"},
-    "BANK_NIFTY": {"search": ["Nifty Bank"],                    "label": "Bank Nifty",      "type": "market"},
-    "INDIA_VIX":  {"search": ["India VIX", "INDIA VIX", "VIX"], "label": "India VIX",       "type": "vix"},
-    "MIDCAP":     {"search": ["Nifty Midcap 50", "MIDCAP 50"],  "label": "Nifty Midcap 50", "type": "market"},
+    "NIFTY_50":   {"search": ["Nifty 50"],         "label": "Nifty 50",        "type": "market"},
+    "BANK_NIFTY": {"search": ["Nifty Bank"],       "label": "Bank Nifty",      "type": "market"},
+    "INDIA_VIX":  {"search": ["India VIX"],        "label": "India VIX",       "type": "vix"},
+    "MIDCAP":     {"search": ["Nifty Midcap 50"],  "label": "Nifty Midcap 50", "type": "market"},
 }
 
 SECTOR_SYMBOLS_WANTED = {
-    "BANK":             {"search": ["Nifty Bank"],                                         "label": "Nifty Bank"},
-    "IT":               {"search": ["Nifty IT"],                                           "label": "Nifty IT"},
-    "FIN_SERVICES":     {"search": ["Nifty Fin Service", "Nifty Financial", "FINNIFTY"],   "label": "Nifty Fin Services"},
-    "AUTO":             {"search": ["Nifty Auto"],                                         "label": "Nifty Auto"},
-    "FMCG":             {"search": ["Nifty FMCG"],                                        "label": "Nifty FMCG"},
-    "METAL":            {"search": ["Nifty Metal"],                                        "label": "Nifty Metal"},
-    "PHARMA":           {"search": ["Nifty Pharma"],                                       "label": "Nifty Pharma"},
-    "REALTY":            {"search": ["Nifty Realty"],                                       "label": "Nifty Realty"},
-    "OIL_GAS":          {"search": ["Nifty Oil", "Oil & Gas", "Oil and Gas"],              "label": "Nifty Oil & Gas"},
-    "CONSUMER_DURABLES":{"search": ["Nifty Consu", "Consumer Durable"],                    "label": "Nifty Consumer Durables"},
+    "BANK":              {"search": ["Nifty Bank"],          "label": "Nifty Bank"},
+    "IT":                {"search": ["Nifty IT"],            "label": "Nifty IT"},
+    "FIN_SERVICES":      {"search": ["Nifty Fin Service"],   "label": "Nifty Fin Services"},
+    "AUTO":              {"search": ["Nifty Auto"],          "label": "Nifty Auto"},
+    "FMCG":              {"search": ["Nifty FMCG"],          "label": "Nifty FMCG"},
+    "METAL":             {"search": ["Nifty Metal"],         "label": "Nifty Metal"},
+    "PHARMA":            {"search": ["Nifty Pharma"],        "label": "Nifty Pharma"},
+    "REALTY":            {"search": ["Nifty Realty"],        "label": "Nifty Realty"},
+    "OIL_GAS":           {"search": ["Nifty Oil and Gas"],   "label": "Nifty Oil & Gas"},
+    "CONSUMER_DURABLES": {"search": ["Nifty Consr Durbl"],   "label": "Nifty Consumer Durables"},
 }
 
 # These dicts get populated at runtime by resolve_instrument_keys()
-MARKET_SYMBOLS: dict  = {}
-SECTOR_SYMBOLS: dict  = {}
+MARKET_SYMBOLS: dict = {}
+SECTOR_SYMBOLS: dict = {}
 ALL_INDEX_KEYS: dict[str, str] = {}
 
 # Lookback periods
@@ -83,9 +96,9 @@ UPSTOX_HIST_BASE = "https://api.upstox.com/v2/historical-candle"
 
 # Retry and rate-limit config
 MAX_RETRIES = 3
-RETRY_DELAY = 2          # seconds between retries
-INTER_CALL_DELAY = 0.25  # seconds between successive API calls
-BREADTH_WORKERS = 5       # parallel threads for breadth stock fetches
+RETRY_DELAY = 2
+INTER_CALL_DELAY = 0.25
+BREADTH_WORKERS = 5
 
 # NSE India API for Nifty 500 constituents
 NSE_BASE = "https://www.nseindia.com"
@@ -93,6 +106,55 @@ NSE_INDEX_API = f"{NSE_BASE}/api/equity-stockIndices"
 
 # Upstox instruments file
 UPSTOX_INSTRUMENTS_URL = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz"
+
+# History file caps
+HISTORY_KEEP = 20
+
+# ---------------------------------------------------------------------------
+# 1a. DECISION LAYER — static mappings
+# ---------------------------------------------------------------------------
+
+REGIME_COLOUR = {
+    "Bullish Trending": "bull",
+    "Recovering":       "recov",
+    "Sideways":         "side",
+    "Correcting":       "correct",
+    "Bear":             "bear",
+    "Unknown":          "side",
+}
+REGIME_LABEL = {
+    "Bullish Trending": "BULL",
+    "Recovering":       "RECOV",
+    "Sideways":         "SIDE",
+    "Correcting":       "CORR",
+    "Bear":             "BEAR",
+    "Unknown":          "?",
+}
+REGIME_RANK = {
+    "Bear": 0, "Correcting": 1, "Recovering": 2,
+    "Sideways": 3, "Bullish Trending": 4, "Unknown": 2,
+}
+
+# Module allocation per regime: (module, priority, friendly_name)
+MODULE_MAP = {
+    "Bullish Trending": [("M1", "primary", "Trend Pullback"),
+                         ("M3", "secondary", "Range Breakout")],
+    "Sideways":         [("M3", "primary", "Range Breakout")],
+    "Recovering":       [("M2", "primary", "Oversold Bounce"),
+                         ("M3", "secondary", "Range Breakout")],
+    "Correcting":       [("M2", "primary", "Oversold Bounce")],
+    "Bear":             [],
+    "Unknown":          [],
+}
+SKIP_MAP = {
+    "Bullish Trending": [("M2", "Oversold Bounce")],
+    "Sideways":         [("M1", "Trend Pullback"), ("M2", "Oversold Bounce")],
+    "Recovering":       [("M1", "Trend Pullback")],
+    "Correcting":       [("M1", "Trend Pullback"), ("M3", "Range Breakout")],
+    "Bear":             [("M1", "Trend Pullback"), ("M2", "Oversold Bounce"),
+                         ("M3", "Range Breakout")],
+    "Unknown":          [],
+}
 
 
 # ---------------------------------------------------------------------------
@@ -104,35 +166,32 @@ def resolve_instrument_keys():
     Download the Upstox instruments JSON and resolve the correct
     instrument_key for every index we need.
 
-    This avoids hardcoding keys that may not match Upstox's exact naming.
-    The instruments file is ~10 MB gzipped; we stream-parse it and keep
-    only NSE_INDEX entries.
+    Strategy:
+      Pass 1 — exact case-insensitive name match for every search term
+               across every wanted symbol. This is the reliable path.
+      Pass 2 — substring fallback, used only if exact match failed.
+               Kept conservative to avoid near-miss hits like
+               'nifty finserexbnk' matching 'Nifty Fin'.
     """
     global MARKET_SYMBOLS, SECTOR_SYMBOLS, ALL_INDEX_KEYS
 
     print("\n[KEYS] Downloading Upstox instruments file ...")
 
-    # --- Download and parse ---
     nse_indices: list[dict] = []
     try:
         import gzip
-        import io
 
         r = requests.get(UPSTOX_INSTRUMENTS_URL, timeout=30)
         if r.status_code != 200:
             raise RuntimeError(f"HTTP {r.status_code}")
 
-        # Try gzip first; if it fails, try raw JSON
         try:
             raw = gzip.decompress(r.content)
         except Exception:
             raw = r.content
 
         all_instruments = json.loads(raw)
-        nse_indices = [
-            inst for inst in all_instruments
-            if inst.get("segment") == "NSE_INDEX"
-        ]
+        nse_indices = [i for i in all_instruments if i.get("segment") == "NSE_INDEX"]
         print(f"[KEYS] Found {len(nse_indices)} NSE_INDEX instruments")
 
     except Exception as e:
@@ -141,42 +200,40 @@ def resolve_instrument_keys():
         _use_hardcoded_keys()
         return
 
-    # --- Build lookup: lowercase name → instrument record ---
+    # Build lookup: lowercase name → instrument record
     lookup: dict[str, dict] = {}
     for inst in nse_indices:
         name = inst.get("name", "") or inst.get("trading_symbol", "")
         if name:
             lookup[name.lower()] = inst
 
-    # Log all available NSE_INDEX names for debugging
     print(f"[KEYS] Available indices: {', '.join(sorted(lookup.keys()))}")
 
-    # --- Resolve each wanted symbol ---
     def _find(search_terms: list[str]) -> dict | None:
-        """Find the best matching instrument for a list of search terms."""
+        # Pass 1: exact matches (prefer this, most deterministic)
         for term in search_terms:
-            term_lower = term.lower()
-            # Exact match first
-            if term_lower in lookup:
-                return lookup[term_lower]
-            # Substring match
+            t = term.lower()
+            if t in lookup:
+                return lookup[t]
+        # Pass 2: substring fallback
+        for term in search_terms:
+            t = term.lower()
             for name, inst in lookup.items():
-                if term_lower in name:
+                if t in name:
                     return inst
         return None
 
-    # Resolve market symbols
     MARKET_SYMBOLS = {}
     for sid, wanted in MARKET_SYMBOLS_WANTED.items():
         inst = _find(wanted["search"])
         if inst:
             key = inst["instrument_key"]
-            MARKET_SYMBOLS[sid] = {"key": key, "label": wanted["label"], "type": wanted.get("type", "market")}
+            MARKET_SYMBOLS[sid] = {"key": key, "label": wanted["label"],
+                                   "type": wanted.get("type", "market")}
             print(f"[KEYS]   {sid:22s} → {key}")
         else:
             print(f"[KEYS]   {sid:22s} → ✗ NOT FOUND (searched: {wanted['search']})")
 
-    # Resolve sector symbols
     SECTOR_SYMBOLS = {}
     for sid, wanted in SECTOR_SYMBOLS_WANTED.items():
         inst = _find(wanted["search"])
@@ -187,7 +244,6 @@ def resolve_instrument_keys():
         else:
             print(f"[KEYS]   {sid:22s} → ✗ NOT FOUND (searched: {wanted['search']})")
 
-    # Build merged key map
     ALL_INDEX_KEYS.clear()
     for sid, meta in {**MARKET_SYMBOLS, **SECTOR_SYMBOLS}.items():
         ALL_INDEX_KEYS[meta["key"]] = sid
@@ -198,26 +254,26 @@ def resolve_instrument_keys():
 
 
 def _use_hardcoded_keys():
-    """Fallback: use best-guess hardcoded keys if instruments file is unavailable."""
+    """Fallback: best-guess hardcoded keys if instruments file is unavailable."""
     global MARKET_SYMBOLS, SECTOR_SYMBOLS, ALL_INDEX_KEYS
 
     MARKET_SYMBOLS = {
-        "NIFTY_50":   {"key": "NSE_INDEX|Nifty 50",       "label": "Nifty 50",        "type": "market"},
-        "BANK_NIFTY": {"key": "NSE_INDEX|Nifty Bank",     "label": "Bank Nifty",      "type": "market"},
-        "INDIA_VIX":  {"key": "NSE_INDEX|India VIX",      "label": "India VIX",       "type": "vix"},
-        "MIDCAP":     {"key": "NSE_INDEX|Nifty Midcap 50","label": "Nifty Midcap 50", "type": "market"},
+        "NIFTY_50":   {"key": "NSE_INDEX|Nifty 50",        "label": "Nifty 50",        "type": "market"},
+        "BANK_NIFTY": {"key": "NSE_INDEX|Nifty Bank",      "label": "Bank Nifty",      "type": "market"},
+        "INDIA_VIX":  {"key": "NSE_INDEX|India VIX",       "label": "India VIX",       "type": "vix"},
+        "MIDCAP":     {"key": "NSE_INDEX|Nifty Midcap 50", "label": "Nifty Midcap 50", "type": "market"},
     }
     SECTOR_SYMBOLS = {
-        "BANK":             {"key": "NSE_INDEX|Nifty Bank",               "label": "Nifty Bank"},
-        "IT":               {"key": "NSE_INDEX|Nifty IT",                 "label": "Nifty IT"},
-        "FIN_SERVICES":     {"key": "NSE_INDEX|Nifty Financial Services", "label": "Nifty Fin Services"},
-        "AUTO":             {"key": "NSE_INDEX|Nifty Auto",               "label": "Nifty Auto"},
-        "FMCG":             {"key": "NSE_INDEX|Nifty FMCG",              "label": "Nifty FMCG"},
-        "METAL":            {"key": "NSE_INDEX|Nifty Metal",              "label": "Nifty Metal"},
-        "PHARMA":           {"key": "NSE_INDEX|Nifty Pharma",             "label": "Nifty Pharma"},
-        "REALTY":            {"key": "NSE_INDEX|Nifty Realty",             "label": "Nifty Realty"},
-        "OIL_GAS":          {"key": "NSE_INDEX|Nifty Oil and Gas",       "label": "Nifty Oil & Gas"},
-        "CONSUMER_DURABLES":{"key": "NSE_INDEX|Nifty Consumer Durables", "label": "Nifty Consumer Durables"},
+        "BANK":              {"key": "NSE_INDEX|Nifty Bank",              "label": "Nifty Bank"},
+        "IT":                {"key": "NSE_INDEX|Nifty IT",                "label": "Nifty IT"},
+        "FIN_SERVICES":      {"key": "NSE_INDEX|Nifty Fin Service",       "label": "Nifty Fin Services"},
+        "AUTO":              {"key": "NSE_INDEX|Nifty Auto",              "label": "Nifty Auto"},
+        "FMCG":              {"key": "NSE_INDEX|Nifty FMCG",              "label": "Nifty FMCG"},
+        "METAL":             {"key": "NSE_INDEX|Nifty Metal",             "label": "Nifty Metal"},
+        "PHARMA":            {"key": "NSE_INDEX|Nifty Pharma",            "label": "Nifty Pharma"},
+        "REALTY":            {"key": "NSE_INDEX|Nifty Realty",            "label": "Nifty Realty"},
+        "OIL_GAS":           {"key": "NSE_INDEX|Nifty Oil and Gas",       "label": "Nifty Oil & Gas"},
+        "CONSUMER_DURABLES": {"key": "NSE_INDEX|Nifty Consr Durbl",       "label": "Nifty Consumer Durables"},
     }
     ALL_INDEX_KEYS.clear()
     for sid, meta in {**MARKET_SYMBOLS, **SECTOR_SYMBOLS}.items():
@@ -230,29 +286,19 @@ def _use_hardcoded_keys():
 
 def _patch_upstox_response_parsing():
     """
-    Monkey-patch the upstox-totp library so that missing fields in
-    Upstox's API response don't crash Pydantic validation.
-
-    The bug: Upstox no longer returns a 'poa' field in the token
-    response, but the library's AccessTokenResponse model requires it.
-    Auth succeeds (HTTP 200 with valid token) but parsing crashes.
-
-    The fix: intercept model_validate on AccessTokenResponse and inject
-    default values for any missing fields before the original validator
-    runs.  This is more reliable than patching annotations, because
-    Pydantic v2 compiles validators at class-creation time.
+    Monkey-patch upstox-totp so missing fields in Upstox's API response
+    don't crash Pydantic validation. Specifically: Upstox no longer
+    returns a 'poa' field but the library's AccessTokenResponse model
+    requires it. Token itself is valid; only the parser was broken.
     """
     try:
         from upstox_totp._api.app_token import AccessTokenResponse
 
         _orig = AccessTokenResponse.model_validate.__func__
-
-        # Fields that Upstox may omit but the library requires
         _defaults = {"poa": False}
 
         @classmethod
         def _tolerant_validate(cls, obj, *a, **kw):
-            # obj is a dict from upstox_response.model_dump()
             if isinstance(obj, dict):
                 data = obj.get("data")
                 if isinstance(data, dict):
@@ -269,11 +315,6 @@ def _patch_upstox_response_parsing():
 
 
 def get_access_token() -> str:
-    """
-    Obtain an Upstox access token via the upstox-totp library.
-    Patches the library's response parser first so missing fields
-    don't cause a crash.
-    """
     from upstox_totp import UpstoxTOTP
 
     _patch_upstox_response_parsing()
@@ -313,10 +354,6 @@ def fetch_candles(
     to_date: str,
     interval: str = "day",
 ) -> list[list]:
-    """
-    Fetch historical candles from Upstox v2 API.
-    Returns list of [timestamp, O, H, L, C, volume, OI] sorted oldest-first.
-    """
     encoded_key = quote(instrument_key, safe="")
     url = f"{UPSTOX_HIST_BASE}/{encoded_key}/{interval}/{to_date}/{from_date}"
     headers = {
@@ -333,8 +370,7 @@ def fetch_candles(
                 candles.reverse()  # API returns newest-first; flip to oldest-first
                 return candles
             elif r.status_code == 429:
-                wait = RETRY_DELAY * attempt
-                time.sleep(wait)
+                time.sleep(RETRY_DELAY * attempt)
             else:
                 if attempt < MAX_RETRIES:
                     time.sleep(RETRY_DELAY)
@@ -346,7 +382,6 @@ def fetch_candles(
 
 
 def fetch_all_index_data(access_token: str) -> dict[str, list[list]]:
-    """Fetch 1-year daily candles for every required index."""
     from_date = (datetime.now() - timedelta(days=INDEX_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
     to_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -372,7 +407,6 @@ def fetch_all_index_data(access_token: str) -> dict[str, list[list]]:
 # ---------------------------------------------------------------------------
 
 def _nse_session() -> requests.Session:
-    """Create a requests session that can talk to NSE India APIs."""
     s = requests.Session()
     s.headers.update({
         "User-Agent": (
@@ -384,28 +418,18 @@ def _nse_session() -> requests.Session:
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://www.nseindia.com/market-data/live-equity-market",
     })
-    # Hit homepage first to get session cookies
     s.get(NSE_BASE, timeout=15)
     time.sleep(0.5)
     return s
 
 
 def fetch_nifty500_constituents() -> list[dict]:
-    """
-    Fetch current Nifty 500 constituent list from NSE India.
-    Returns list of {"symbol": ..., "isin": ..., "upstox_key": ...}
-    Falls back to Nifty 200 or Nifty 100 if 500 fails.
-    """
     session = _nse_session()
 
     for index_name in ["NIFTY 500", "NIFTY 200", "NIFTY 100"]:
         try:
             print(f"  [BREADTH] Trying NSE API for {index_name} ...", end=" ", flush=True)
-            r = session.get(
-                NSE_INDEX_API,
-                params={"index": index_name},
-                timeout=20,
-            )
+            r = session.get(NSE_INDEX_API, params={"index": index_name}, timeout=20)
             if r.status_code == 200:
                 data = r.json()
                 stocks = data.get("data", [])
@@ -435,13 +459,7 @@ def fetch_nifty500_constituents() -> list[dict]:
     return []
 
 
-def _fetch_stock_above_ema(
-    args: tuple[str, str, str, str, str],
-) -> tuple[str, bool | None]:
-    """
-    Worker: fetch candles for one stock and check if close > 20 EMA.
-    Returns (symbol, True/False/None).
-    """
+def _fetch_stock_above_ema(args) -> tuple[str, bool | None]:
     symbol, upstox_key, access_token, from_date, to_date = args
     try:
         candles = fetch_candles(upstox_key, access_token, from_date, to_date)
@@ -449,8 +467,6 @@ def _fetch_stock_above_ema(
             return (symbol, None)
 
         closes = [c[4] for c in candles]
-
-        # Compute 20 EMA inline (SMA seed + exponential smoothing)
         period = 20
         multiplier = 2 / (period + 1)
         ema = sum(closes[:period]) / period
@@ -462,24 +478,15 @@ def _fetch_stock_above_ema(
         return (symbol, None)
 
 
-def compute_market_breadth(
-    constituents: list[dict],
-    access_token: str,
-) -> dict:
-    """
-    Compute real market breadth: % of stocks with close > 20 EMA.
-    Uses ThreadPoolExecutor for parallel fetching.
-    """
+def compute_market_breadth(constituents: list[dict], access_token: str) -> dict:
     from_date = (datetime.now() - timedelta(days=BREADTH_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
     to_date = datetime.now().strftime("%Y-%m-%d")
 
     print(f"\n[BREADTH] Computing breadth for {len(constituents)} stocks "
           f"({from_date} to {to_date}, {BREADTH_WORKERS} threads)\n")
 
-    tasks = [
-        (c["symbol"], c["upstox_key"], access_token, from_date, to_date)
-        for c in constituents
-    ]
+    tasks = [(c["symbol"], c["upstox_key"], access_token, from_date, to_date)
+             for c in constituents]
 
     above_count = 0
     below_count = 0
@@ -499,17 +506,13 @@ def compute_market_breadth(
             else:
                 error_count += 1
 
-            # Progress every 50 stocks
             if done % 50 == 0 or done == total:
                 computed = above_count + below_count
                 pct = (above_count / computed * 100) if computed > 0 else 0
-                print(
-                    f"  [BREADTH] {done:3d}/{total} fetched | "
-                    f"Above: {above_count} | Below: {below_count} | "
-                    f"Errors: {error_count} | Running: {pct:.1f}%"
-                )
+                print(f"  [BREADTH] {done:3d}/{total} fetched | "
+                      f"Above: {above_count} | Below: {below_count} | "
+                      f"Errors: {error_count} | Running: {pct:.1f}%")
 
-            # Small delay per thread to stay within rate limits
             time.sleep(INTER_CALL_DELAY / BREADTH_WORKERS)
 
     computed = above_count + below_count
@@ -527,11 +530,10 @@ def compute_market_breadth(
 
 
 # ---------------------------------------------------------------------------
-# 5. TECHNICAL CALCULATIONS (for indices)
+# 5. TECHNICAL CALCULATIONS (indices)
 # ---------------------------------------------------------------------------
 
 def calc_ema(closes: list[float], period: int) -> list[float | None]:
-    """EMA with SMA seed. Returns list same length as closes."""
     if len(closes) < period:
         return [None] * len(closes)
 
@@ -549,7 +551,6 @@ def calc_ema(closes: list[float], period: int) -> list[float | None]:
 
 
 def calc_atr(candles: list[list], period: int = 14) -> float | None:
-    """Latest ATR(period) using Wilder's smoothing."""
     if len(candles) < period + 1:
         return None
 
@@ -568,8 +569,24 @@ def calc_atr(candles: list[list], period: int = 14) -> float | None:
     return round(atr, 2)
 
 
+def count_consecutive_days_below(closes: list[float], ema_arr: list) -> int:
+    """
+    Count consecutive trading days (before today) where close < EMA.
+    Used to annotate 'Nifty reclaimed 20 EMA after N days below' in insights.
+    Today is the last element; counting walks backwards from the second-last.
+    """
+    count = 0
+    for i in range(len(closes) - 2, -1, -1):
+        if i >= len(ema_arr) or ema_arr[i] is None:
+            break
+        if closes[i] < ema_arr[i]:
+            count += 1
+        else:
+            break
+    return count
+
+
 def process_symbol(candles: list[list]) -> dict:
-    """Compute EMAs and summary stats for one symbol's candle data."""
     if not candles:
         return {
             "current_close": None, "prev_close": None, "change_pct": None,
@@ -611,19 +628,6 @@ def classify_market_regime(
     breadth_pct: float | None,
     sector_regimes: dict,
 ) -> dict:
-    """
-    Classify overall market regime using Nifty EMAs + VIX + breadth.
-
-    Uses real breadth (% of Nifty 500 above 20 EMA) when available,
-    falls back to sector-based proxy otherwise.
-
-    Regime rules:
-      Bullish Trending — Nifty > 20 & 50 EMA, breadth > 60%, VIX < 16
-      Sideways         — Nifty near 20 EMA (+/-1%), breadth 40-60%
-      Recovering       — Nifty < 20 EMA but > 50 EMA, breadth rising
-      Correcting       — Nifty < 20 & 50 EMA, breadth < 40%
-      Bear             — Nifty < 200 EMA, VIX > 22
-    """
     close = nifty.get("current_close")
     ema20 = nifty.get("ema_20")
     ema50 = nifty.get("ema_50")
@@ -631,12 +635,9 @@ def classify_market_regime(
     vix_close = vix.get("current_close")
 
     if any(v is None for v in [close, ema20, ema50, ema200]):
-        return {
-            "regime": "Unknown", "active_modules": [],
-            "description": "Insufficient data for classification", "colour": "gray",
-        }
+        return {"regime": "Unknown", "active_modules": [],
+                "description": "Insufficient data for classification", "colour": "gray"}
 
-    # Breadth: prefer real, fall back to sector proxy
     if breadth_pct is not None:
         breadth = breadth_pct
         bsrc = "Nifty 500"
@@ -648,47 +649,33 @@ def classify_market_regime(
 
     vix_val = vix_close if vix_close is not None else 15
 
-    # --- Classification (most restrictive first) ---
-
     if close < ema200 and vix_val > 22:
-        return {
-            "regime": "Bear", "active_modules": [],
-            "description": f"Nifty below 200 EMA, VIX {vix_val:.1f}. Breadth {breadth:.0f}% ({bsrc})",
-            "colour": "red",
-        }
+        return {"regime": "Bear", "active_modules": [],
+                "description": f"Nifty below 200 EMA, VIX {vix_val:.1f}. Breadth {breadth:.0f}% ({bsrc})",
+                "colour": "red"}
 
     if close < ema20 and close < ema50:
-        return {
-            "regime": "Correcting", "active_modules": ["M2"],
-            "description": f"Nifty below 20 & 50 EMA. Breadth {breadth:.0f}% ({bsrc})",
-            "colour": "orange",
-        }
+        return {"regime": "Correcting", "active_modules": ["M2"],
+                "description": f"Nifty below 20 & 50 EMA. Breadth {breadth:.0f}% ({bsrc})",
+                "colour": "orange"}
 
     if close < ema20 and close >= ema50:
-        return {
-            "regime": "Recovering", "active_modules": ["M2", "M3"],
-            "description": f"Nifty below 20 EMA, above 50 EMA. Breadth {breadth:.0f}% ({bsrc})",
-            "colour": "yellow",
-        }
+        return {"regime": "Recovering", "active_modules": ["M2", "M3"],
+                "description": f"Nifty below 20 EMA, above 50 EMA. Breadth {breadth:.0f}% ({bsrc})",
+                "colour": "yellow"}
 
-    # Close >= ema20 from here
     pct_from_ema20 = abs(close - ema20) / ema20 * 100
 
     if pct_from_ema20 <= 1.0 and 40 <= breadth <= 60:
-        return {
-            "regime": "Sideways", "active_modules": ["M3"],
-            "description": f"Nifty within 1% of 20 EMA. Breadth {breadth:.0f}% ({bsrc})",
-            "colour": "yellow",
-        }
+        return {"regime": "Sideways", "active_modules": ["M3"],
+                "description": f"Nifty within 1% of 20 EMA. Breadth {breadth:.0f}% ({bsrc})",
+                "colour": "yellow"}
 
     if close > ema20 and close > ema50 and breadth > 60 and vix_val < 16:
-        return {
-            "regime": "Bullish Trending", "active_modules": ["M1", "M3"],
-            "description": f"Nifty above 20 & 50 EMA, VIX {vix_val:.1f}, breadth {breadth:.0f}% ({bsrc})",
-            "colour": "green",
-        }
+        return {"regime": "Bullish Trending", "active_modules": ["M1", "M3"],
+                "description": f"Nifty above 20 & 50 EMA, VIX {vix_val:.1f}, breadth {breadth:.0f}% ({bsrc})",
+                "colour": "green"}
 
-    # Above EMAs but breadth or VIX not fully qualifying
     if close > ema20 and close > ema50:
         notes = []
         if vix_val >= 16:
@@ -696,28 +683,16 @@ def classify_market_regime(
         if breadth <= 60:
             notes.append(f"breadth moderate ({breadth:.0f}%)")
         detail = "; ".join(notes) if notes else "all clear"
-        return {
-            "regime": "Bullish Trending", "active_modules": ["M1", "M3"],
-            "description": f"Nifty above 20 & 50 EMA. {detail}. ({bsrc})",
-            "colour": "green",
-        }
+        return {"regime": "Bullish Trending", "active_modules": ["M1", "M3"],
+                "description": f"Nifty above 20 & 50 EMA. {detail}. ({bsrc})",
+                "colour": "green"}
 
-    # Fallback
-    return {
-        "regime": "Sideways", "active_modules": ["M3"],
-        "description": f"Mixed signals. Breadth {breadth:.0f}% ({bsrc})",
-        "colour": "yellow",
-    }
+    return {"regime": "Sideways", "active_modules": ["M3"],
+            "description": f"Mixed signals. Breadth {breadth:.0f}% ({bsrc})",
+            "colour": "yellow"}
 
 
 def classify_sector_regime(data: dict) -> dict:
-    """
-    Classify a sector for position sizing.
-      Bullish    — above 20 & 50 EMA -> 100%
-      Recovering — below 20, above 50 -> 50%
-      Sideways   — within 2% of 20 EMA -> 50%
-      Correcting — below 20 & 50 EMA -> skip
-    """
     close = data.get("current_close")
     ema20 = data.get("ema_20")
     ema50 = data.get("ema_50")
@@ -736,14 +711,272 @@ def classify_sector_regime(data: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 7. JSON OUTPUT
+# 7. DECISION LAYER — transition, insight, playbook, scan here
+# ---------------------------------------------------------------------------
+
+def _load_json_history(path: str) -> list[dict]:
+    p = Path(path)
+    if not p.exists():
+        return []
+    try:
+        data = json.loads(p.read_text())
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def append_regime_history(path: str, iso_date: str, regime: str):
+    p = Path(path)
+    hist = _load_json_history(path)
+    hist = [h for h in hist if h.get("date") != iso_date]
+    hist.append({"date": iso_date, "regime": regime})
+    hist.sort(key=lambda h: h["date"])
+    hist = hist[-HISTORY_KEEP:]
+    p.write_text(json.dumps(hist, indent=2))
+
+
+def append_breadth_history(path: str, iso_date: str, breadth_pct: float | None):
+    if breadth_pct is None:
+        return
+    p = Path(path)
+    hist = _load_json_history(path)
+    hist = [h for h in hist if h.get("date") != iso_date]
+    hist.append({"date": iso_date, "breadth_pct": round(float(breadth_pct), 2)})
+    hist.sort(key=lambda h: h["date"])
+    hist = hist[-HISTORY_KEEP:]
+    p.write_text(json.dumps(hist, indent=2))
+
+
+def compute_regime_transition(history: list[dict], current_regime: str,
+                              today_iso: str) -> dict:
+    """
+    Build the 5-day transition strip and status label.
+    `history` should NOT yet contain today's entry; today is appended here.
+    """
+    working = [h for h in history if h.get("date") != today_iso]
+    working.append({"date": today_iso, "regime": current_regime})
+    last5 = working[-5:]
+
+    strip = [{
+        "date":   h["date"],
+        "regime": h["regime"],
+        "label":  REGIME_LABEL.get(h["regime"], "?"),
+        "colour": REGIME_COLOUR.get(h["regime"], "side"),
+    } for h in last5]
+
+    # Days in current regime (consecutive, ending today)
+    days_in = 1
+    for h in reversed(last5[:-1]):
+        if h["regime"] == current_regime:
+            days_in += 1
+        else:
+            break
+
+    regimes = [h["regime"] for h in last5]
+    flips = sum(1 for i in range(1, len(regimes)) if regimes[i] != regimes[i-1])
+
+    if flips >= 3:
+        status, direction = "CHOPPY", "choppy"
+        note = "3+ flips in 5 days — stand aside today"
+    else:
+        ranks = [REGIME_RANK.get(r, 2) for r in regimes]
+        delta = ranks[-1] - ranks[0] if len(ranks) >= 2 else 0
+
+        if days_in == 1 and current_regime == "Bullish Trending":
+            status, direction = "FRESH BULL", "improving"
+            note = "Day 1 confirming — size half, do not chase"
+        elif delta >= 2:
+            status, direction = "IMPROVING", "improving"
+            note = "Regime climbing — re-engage cautiously"
+        elif delta <= -2:
+            status, direction = "WEAKENING", "weakening"
+            note = "Regime deteriorating — tighten and reduce"
+        elif days_in >= 3:
+            status = f"STABLE {REGIME_LABEL.get(current_regime, '')}".strip()
+            direction = "stable"
+            note = "Trend intact — normal sizing"
+        else:
+            status = REGIME_LABEL.get(current_regime, current_regime)
+            direction = "stable"
+            note = "Regime unchanged"
+
+    return {
+        "history": strip,
+        "status": status,
+        "days_in_regime": days_in,
+        "direction": direction,
+        "note": note,
+    }
+
+
+def compute_market_insight(
+    nifty: dict,
+    vix: dict,
+    nifty_candles: list[list],
+    breadth_pct: float | None,
+    breadth_history: list[dict],
+) -> list[dict]:
+    """
+    Rules-only insights. Each line is triggered by a specific numeric
+    threshold crossing. No prose, no opinion. Max 3 lines, ranked by severity.
+    """
+    out = []
+
+    close = nifty.get("current_close")
+    prev = nifty.get("prev_close")
+    ema20_last = nifty.get("ema_20")
+    ema50_last = nifty.get("ema_50")
+
+    # --- Nifty 20 EMA reclaim / lose ---
+    if close is not None and prev is not None and ema20_last is not None and nifty_candles:
+        closes = [c[4] for c in nifty_candles]
+        ema20_arr = calc_ema(closes, 20)
+
+        # Yesterday's EMA20 value (for crossover detection)
+        prev_ema20 = ema20_arr[-2] if len(ema20_arr) >= 2 and ema20_arr[-2] is not None else None
+
+        if prev_ema20 is not None:
+            if close >= ema20_last and prev < prev_ema20:
+                days_below = count_consecutive_days_below(closes, ema20_arr)
+                suffix = f" after {days_below} day{'s' if days_below != 1 else ''} below" if days_below else ""
+                out.append({"severity": "high", "trigger": "nifty_reclaim_20ema",
+                            "text": f"Nifty reclaimed 20 EMA{suffix} — M1 re-activated"})
+            elif close < ema20_last and prev >= prev_ema20:
+                out.append({"severity": "high", "trigger": "nifty_lose_20ema",
+                            "text": "Nifty lost 20 EMA — M1 setups invalidated"})
+
+        # --- Nifty 50 EMA cross ---
+        ema50_arr = calc_ema(closes, 50)
+        prev_ema50 = ema50_arr[-2] if len(ema50_arr) >= 2 and ema50_arr[-2] is not None else None
+
+        if prev_ema50 is not None and ema50_last is not None:
+            if close >= ema50_last and prev < prev_ema50:
+                out.append({"severity": "medium", "trigger": "nifty_reclaim_50ema",
+                            "text": "Nifty reclaimed 50 EMA — medium-term trend confirming"})
+            elif close < ema50_last and prev >= prev_ema50:
+                out.append({"severity": "high", "trigger": "nifty_lose_50ema",
+                            "text": "Nifty lost 50 EMA — medium-term trend at risk"})
+
+    # --- Breadth shift (3d) ---
+    if breadth_pct is not None and breadth_history:
+        # breadth_history excludes today. 3 trading days ago = index -3
+        if len(breadth_history) >= 3:
+            b3 = breadth_history[-3].get("breadth_pct")
+            if b3 is not None:
+                d = breadth_pct - b3
+                if d >= 10:
+                    out.append({"severity": "high", "trigger": "breadth_expansion",
+                                "text": f"Breadth {b3:.0f}% → {breadth_pct:.0f}% in 3 days — participation broadening, M3 odds up"})
+                elif d <= -10:
+                    out.append({"severity": "high", "trigger": "breadth_contraction",
+                                "text": f"Breadth {b3:.0f}% → {breadth_pct:.0f}% in 3 days — narrow leadership, tighten"})
+
+    # --- VIX regime ---
+    vc = vix.get("current_close")
+    vp = vix.get("prev_close")
+    if vc is not None and vp is not None:
+        if vc >= 16 and vp < 16:
+            out.append({"severity": "high", "trigger": "vix_high",
+                        "text": "VIX > 16 — volatility regime, widen stops or skip new entries"})
+        elif vc < 14 and vp >= 14:
+            out.append({"severity": "medium", "trigger": "vix_low",
+                        "text": "VIX < 14 — complacency zone, watch for volatility reversal"})
+        elif vc < 14:
+            out.append({"severity": "low", "trigger": "vix_low_persist",
+                        "text": "VIX < 14 — complacency zone, watch for volatility reversal"})
+
+    rank = {"high": 0, "medium": 1, "low": 2}
+    out.sort(key=lambda x: rank.get(x["severity"], 9))
+    return out[:3]
+
+
+def compute_playbook(
+    regime: str,
+    sector_regimes_full: dict,
+    transition: dict,
+    open_trades: int = 0,
+    max_open: int = 5,
+) -> dict:
+    """
+    Build today's playbook. Collapses to stand-aside on CHOPPY regime.
+    Halves size on FRESH BULL and WEAKENING transitions.
+    """
+    run = [{"module": m, "priority": p, "name": n}
+           for (m, p, n) in MODULE_MAP.get(regime, [])]
+    skip = [{"module": m, "name": n} for (m, n) in SKIP_MAP.get(regime, [])]
+
+    focus, watch, avoid = [], [], []
+    for code, s in sector_regimes_full.items():
+        reg = s.get("regime", "")
+        if reg == "Bullish":
+            focus.append(code)
+        elif reg in ("Recovering", "Sideways"):
+            watch.append(code)
+        elif reg == "Correcting":
+            avoid.append(code)
+
+    cap = max(0, max_open - open_trades)
+    cap = min(cap, 2)
+
+    size_rule = "full"
+    size_reason = ""
+    override = None
+
+    if transition.get("direction") == "choppy":
+        override = "CHOPPY regime — stand aside today, no new entries"
+        run = []
+        cap = 0
+    elif transition.get("status") == "FRESH BULL":
+        size_rule = "half"
+        size_reason = "FRESH BULL day 1 — confirm before full size"
+    elif transition.get("direction") == "weakening":
+        size_rule = "half"
+        size_reason = "Regime weakening — reduce exposure"
+
+    return {
+        "run": run,
+        "skip": skip,
+        "focus_sectors": focus,
+        "watch_sectors": watch,
+        "avoid_sectors": avoid,
+        "cap_new_entries": cap,
+        "size_rule": size_rule,
+        "size_reason": size_reason,
+        "override": override,
+    }
+
+
+def compute_scan_here(sector_regimes_full: dict) -> dict:
+    """
+    Rank sectors by distance from their 20 EMA. Top 3 = scan for M1/M3.
+    Bottom 3 = scan for M2. Narrows universe to ~50-80 stocks.
+    """
+    scored = []
+    for code, s in sector_regimes_full.items():
+        close = s.get("current_close")
+        ema20 = s.get("ema_20")
+        if close and ema20 and ema20 > 0:
+            dist = (close - ema20) / ema20 * 100.0
+            scored.append({"sector": code, "distance_pct": round(dist, 2)})
+
+    scored.sort(key=lambda x: x["distance_pct"], reverse=True)
+    return {
+        "strong": scored[:3],
+        "weak": list(reversed(scored[-3:])),
+    }
+
+
+# ---------------------------------------------------------------------------
+# 8. JSON OUTPUT
 # ---------------------------------------------------------------------------
 
 def build_dashboard_json(
     raw_index_data: dict[str, list[list]],
     breadth_data: dict | None,
+    regime_history: list[dict],
+    breadth_history: list[dict],
+    today_iso: str,
 ) -> dict:
-    """Build the complete dashboard_data.json."""
     now = datetime.now()
 
     # --- Process market symbols ---
@@ -751,11 +984,12 @@ def build_dashboard_json(
     for sid, meta in MARKET_SYMBOLS.items():
         candles = raw_index_data.get(meta["key"], [])
         processed = process_symbol(candles)
-        market_processed[sid] = {**processed, "label": meta["label"], "instrument_key": meta["key"]}
+        market_processed[sid] = {**processed, "label": meta["label"],
+                                 "instrument_key": meta["key"]}
 
     # --- Process sector symbols ---
     sector_processed = {}
-    sector_regimes = {}
+    sector_regimes_classification = {}
     for sid, meta in SECTOR_SYMBOLS.items():
         candles = raw_index_data.get(meta["key"], [])
         processed = process_symbol(candles)
@@ -766,39 +1000,71 @@ def build_dashboard_json(
             "instrument_key": meta["key"],
             "regime": regime["regime"],
             "position_size_rule": regime["position_size_rule"],
-            "regime_colour": regime["colour"],
+            "regime_colour": REGIME_COLOUR.get(regime["regime"], "side"),
         }
-        sector_regimes[sid] = regime
+        sector_regimes_classification[sid] = regime
 
     # --- Market regime ---
-    nifty = market_processed.get("NIFTY_50", {})
-    vix = market_processed.get("INDIA_VIX", {})
+    nifty_data = market_processed.get("NIFTY_50", {})
+    vix_data = market_processed.get("INDIA_VIX", {})
     real_breadth = breadth_data.get("breadth_pct") if breadth_data else None
-    market_regime = classify_market_regime(nifty, vix, real_breadth, sector_regimes)
+    market_regime = classify_market_regime(
+        nifty_data, vix_data, real_breadth, sector_regimes_classification
+    )
+
+    # --- DECISION LAYER ---
+    transition = compute_regime_transition(
+        regime_history, market_regime["regime"], today_iso
+    )
+
+    nifty_key = MARKET_SYMBOLS.get("NIFTY_50", {}).get("key", "")
+    nifty_candles = raw_index_data.get(nifty_key, [])
+
+    insight = compute_market_insight(
+        nifty_data, vix_data, nifty_candles, real_breadth, breadth_history
+    )
+
+    playbook = compute_playbook(
+        market_regime["regime"], sector_processed, transition
+    )
+
+    scan_here = compute_scan_here(sector_processed)
+
+    # --- Enriched breadth block with 3d delta ---
+    breadth_block = dict(breadth_data) if breadth_data else {
+        "breadth_pct": None, "above_ema": None, "below_ema": None,
+        "errors": None, "total_constituents": None,
+        "total_computed": None, "index_used": "unavailable",
+    }
+    if real_breadth is not None and len(breadth_history) >= 3:
+        b3 = breadth_history[-3].get("breadth_pct")
+        if b3 is not None:
+            breadth_block["breadth_3d_ago"] = b3
+            breadth_block["change_3d"] = round(real_breadth - b3, 2)
 
     # --- Assemble output ---
     return {
         "meta": {
             "generated_at": now.isoformat(),
             "generated_date": now.strftime("%Y-%m-%d"),
-            "generated_time": now.strftime("%H:%M:%S"),
+            "generated_time": now.strftime("%H:%M IST"),
             "data_source": "Upstox API v2",
             "index_lookback_days": INDEX_LOOKBACK_DAYS,
             "breadth_lookback_days": BREADTH_LOOKBACK_DAYS,
-            "schema_version": "1.1",
+            "schema_version": "1.2",
         },
         "market_pulse": {
-            "nifty": market_processed.get("NIFTY_50"),
+            "nifty":      market_processed.get("NIFTY_50"),
             "bank_nifty": market_processed.get("BANK_NIFTY"),
-            "midcap": market_processed.get("MIDCAP"),
-            "vix": market_processed.get("INDIA_VIX"),
+            "midcap":     market_processed.get("MIDCAP"),
+            "vix":        market_processed.get("INDIA_VIX"),
         },
         "market_regime": market_regime,
-        "breadth": breadth_data or {
-            "breadth_pct": None, "above_ema": None, "below_ema": None,
-            "errors": None, "total_constituents": None,
-            "total_computed": None, "index_used": "unavailable",
-        },
+        "regime_transition": transition,
+        "breadth": breadth_block,
+        "market_insight": insight,
+        "playbook": playbook,
+        "scan_here": scan_here,
         "sector_regimes": sector_processed,
         "modules": {
             "M1": {
@@ -839,14 +1105,14 @@ def build_dashboard_json(
 
 
 # ---------------------------------------------------------------------------
-# 8. MAIN
+# 9. MAIN
 # ---------------------------------------------------------------------------
 
 def main():
     start_time = time.time()
 
     print("=" * 65)
-    print("  Swing Trading Dashboard — Data Fetch")
+    print("  Swing Trading Dashboard — Data Fetch v1.2")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 65)
 
@@ -881,7 +1147,7 @@ def main():
         print("\n[FATAL] No data for Nifty 50 — cannot proceed")
         sys.exit(1)
 
-    # -- Step 3: Fetch Nifty 500 constituents --
+    # -- Step 4: Fetch Nifty 500 constituents --
     print("\n[STEP 4/6] Fetching Nifty 500 constituent list from NSE ...")
     try:
         constituents = fetch_nifty500_constituents()
@@ -889,7 +1155,7 @@ def main():
         print(f"  [BREADTH] Failed to get constituents: {e}")
         constituents = []
 
-    # -- Step 4: Compute breadth --
+    # -- Step 5: Compute breadth --
     breadth_data = None
     if constituents:
         print(f"\n[STEP 5/6] Computing market breadth ({len(constituents)} stocks) ...")
@@ -905,18 +1171,39 @@ def main():
     else:
         print("\n[STEP 5/6] Skipping breadth (no constituent list) — will use sector proxy")
 
-    # -- Step 5: Process and write JSON --
-    print("\n[STEP 6/6] Processing data, classifying regimes, writing JSON ...")
-    dashboard = build_dashboard_json(raw_index_data, breadth_data)
+    # -- Step 6: Decision layer + JSON output --
+    print("\n[STEP 6/6] Building decision layer and writing JSON ...")
 
-    output_path = os.environ.get("OUTPUT_PATH", "dashboard_data.json")
+    output_path         = os.environ.get("OUTPUT_PATH",          "dashboard_data.json")
+    regime_history_path = os.environ.get("REGIME_HISTORY_PATH",  "regime_history.json")
+    breadth_history_path= os.environ.get("BREADTH_HISTORY_PATH", "breadth_history.json")
+
+    # Load histories BEFORE computing decision layer — today must not yet be in them
+    regime_history  = _load_json_history(regime_history_path)
+    breadth_history = _load_json_history(breadth_history_path)
+
+    today_iso = datetime.now().strftime("%Y-%m-%d")
+
+    dashboard = build_dashboard_json(
+        raw_index_data, breadth_data,
+        regime_history, breadth_history, today_iso,
+    )
+
     with open(output_path, "w") as f:
         json.dump(dashboard, f, indent=2, ensure_ascii=False)
+
+    # Append today's values to history files (AFTER computing insight/transition,
+    # so tomorrow's run sees today as a prior data point)
+    append_regime_history(regime_history_path, today_iso, dashboard["market_regime"]["regime"])
+    if breadth_data and breadth_data.get("breadth_pct") is not None:
+        append_breadth_history(breadth_history_path, today_iso, breadth_data["breadth_pct"])
 
     # -- Summary --
     elapsed = time.time() - start_time
     regime = dashboard["market_regime"]["regime"]
-    modules = ", ".join(dashboard["market_regime"]["active_modules"]) or "None"
+    trans = dashboard["regime_transition"]
+    pb = dashboard["playbook"]
+    modules = ", ".join(m["module"] for m in pb["run"]) or "— stand aside —"
     nifty_close = dashboard["market_pulse"]["nifty"]["current_close"]
     vix_close = dashboard["market_pulse"]["vix"]["current_close"]
     breadth_val = dashboard["breadth"]["breadth_pct"]
@@ -930,8 +1217,19 @@ def main():
         print(f"  Breadth:        {breadth_val}% of Nifty 500 above 20 EMA")
     else:
         print(f"  Breadth:        unavailable (using sector proxy)")
-    print(f"  Market Regime:  {regime}")
-    print(f"  Active Modules: {modules}")
+    print(f"  Regime:         {regime}")
+    print(f"  Transition:     {trans['status']}  ({trans['direction']}, day {trans['days_in_regime']})")
+    print(f"  Playbook RUN:   {modules}")
+    if pb['override']:
+        print(f"  OVERRIDE:       {pb['override']}")
+    print(f"  Size:           {pb['size_rule']}  {pb['size_reason']}")
+    print(f"  Focus sectors:  {', '.join(pb['focus_sectors']) or '—'}")
+    print(f"  Avoid sectors:  {', '.join(pb['avoid_sectors']) or '—'}")
+    if dashboard['market_insight']:
+        print(f"")
+        print(f"  Insight:")
+        for i in dashboard['market_insight']:
+            print(f"    → {i['text']}")
     print(f"")
     print(f"  Sector Regimes:")
     for sid, sdata in dashboard["sector_regimes"].items():
