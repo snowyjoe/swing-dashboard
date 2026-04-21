@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Swing Trading Dashboard — Data Fetch Script (fetch.py)  v1.2
+Swing Trading Dashboard — Data Fetch Script (fetch.py)  v1.3
 =============================================================
 Runs daily via GitHub Actions at 3:30 PM IST.
 
@@ -155,6 +155,41 @@ SKIP_MAP = {
                          ("M3", "Range Breakout")],
     "Unknown":          [],
 }
+
+# Today's Mode — transition.status → (mode, wait_for, dont)
+# The single most important block a trader reads in the morning.
+TODAY_MODE_MAP = {
+    "FRESH BULL":    ("TRADE — half size",  "Pullbacks to 20 EMA in ready sectors",          "Chase extended sectors, anticipate breakouts"),
+    "STABLE BULL":   ("TRADE — full size",  "Clean setups in ready sectors",                 "Buy tops, force M1 where no pullback"),
+    "IMPROVING":     ("TRADE — half size",  "Confirmation of new uptrend",                   "Full size until trend proves itself"),
+    "WEAKENING":     ("REDUCE — half size", "Existing positions to hit targets",             "New entries, add to losers"),
+    "CHOPPY":        ("STAND ASIDE",        "Regime to settle (2+ days same state)",         "Any new entries today"),
+    "STABLE SIDE":   ("SELECTIVE — M3 only","Clean range breakouts with volume",             "M1 pullbacks, anticipate direction"),
+    "STABLE RECOV":  ("TRADE — half size",  "M2 setups in oversold leaders",                 "M1 until Bullish confirms"),
+    "STABLE CORR":   ("M2 ONLY — half size","Deep oversold bounces in strong names",         "M1 or M3 in this regime"),
+    "STABLE BEAR":   ("NO TRADES",          "Regime to shift to Correcting or better",       "Catching knives"),
+}
+# Default when status doesn't match (early days of new regime, etc.)
+TODAY_MODE_DEFAULT = ("OBSERVE", "Regime to stabilise before committing", "Early conviction trades")
+
+# Insight fallback — when no rules fire, show regime-appropriate guidance
+# so the Insight block never says generic "no significant changes".
+INSIGHT_FALLBACK_MAP = {
+    "FRESH BULL":    "Day 1 confirmation — wait for strong closes, don't anticipate.",
+    "STABLE BULL":   "Trend intact — stick to the system.",
+    "IMPROVING":     "Regime climbing — re-engage cautiously, half size.",
+    "WEAKENING":     "Leadership thinning — tighten stops, no new longs.",
+    "CHOPPY":        "Regime flipping — stand aside until it settles.",
+    "STABLE SIDE":   "Range-bound — M3 breakouts only, with volume.",
+    "STABLE RECOV":  "Under 20 EMA but above 50 — M2 zone, size half.",
+    "STABLE CORR":   "Correction intact — M2 oversold bounces only.",
+    "STABLE BEAR":   "Bear regime — no trades.",
+}
+
+# Scan Here thresholds (% distance from 20 EMA)
+SCAN_READY_MAX = 3.0   # 0% to +3% → READY for M1/M3
+# Above SCAN_READY_MAX → EXTENDED (don't chase)
+# Below 0%              → WEAK (M2 candidates)
 
 
 # ---------------------------------------------------------------------------
@@ -948,21 +983,127 @@ def compute_playbook(
 
 def compute_scan_here(sector_regimes_full: dict) -> dict:
     """
-    Rank sectors by distance from their 20 EMA. Top 3 = scan for M1/M3.
-    Bottom 3 = scan for M2. Narrows universe to ~50-80 stocks.
+    Bucket sectors by their distance from 20 EMA into actionable zones:
+
+      READY    (0% to +3% above 20 EMA)  → M1/M3 scan here today
+      EXTENDED (>+3% above 20 EMA)        → wait for pullback, do NOT chase
+      WEAK     (below 20 EMA)             → M2 candidates only if regime is
+                                            Recovering / Correcting
+
+    Replaces the previous top-3/bottom-3 ranking which pointed traders at
+    the most extended sectors for M1 — impossible setups, since M1 requires
+    a pullback to 20 EMA.
+
+    Within each bucket:
+      READY    sorted closest-to-20-EMA first (cleanest M1 targets)
+      EXTENDED sorted most-extended first (biggest warnings first)
+      WEAK     sorted most-oversold first (best M2 candidates first)
     """
-    scored = []
+    ready, extended, weak = [], [], []
+
     for code, s in sector_regimes_full.items():
         close = s.get("current_close")
         ema20 = s.get("ema_20")
-        if close and ema20 and ema20 > 0:
-            dist = (close - ema20) / ema20 * 100.0
-            scored.append({"sector": code, "distance_pct": round(dist, 2)})
+        if not (close and ema20 and ema20 > 0):
+            continue
+        dist = (close - ema20) / ema20 * 100.0
+        item = {"sector": code, "distance_pct": round(dist, 2)}
 
-    scored.sort(key=lambda x: x["distance_pct"], reverse=True)
+        if dist < 0:
+            weak.append(item)
+        elif dist <= SCAN_READY_MAX:
+            ready.append(item)
+        else:
+            extended.append(item)
+
+    ready.sort(key=lambda x: x["distance_pct"])                 # 0% first
+    extended.sort(key=lambda x: x["distance_pct"], reverse=True) # most extended first
+    weak.sort(key=lambda x: x["distance_pct"])                  # most negative first
+
     return {
-        "strong": scored[:3],
-        "weak": list(reversed(scored[-3:])),
+        "ready": ready,
+        "extended": extended,
+        "weak": weak,
+        "ready_threshold_pct": SCAN_READY_MAX,
+    }
+
+
+def compute_today_mode(transition: dict) -> dict:
+    """
+    Map transition status → concrete 3-line action guidance.
+    The trader's single most important morning read.
+    """
+    status = transition.get("status", "")
+    mode, wait_for, dont = TODAY_MODE_MAP.get(status, TODAY_MODE_DEFAULT)
+    return {"mode": mode, "wait_for": wait_for, "dont": dont}
+
+
+def compute_insight_fallback(transition: dict) -> str:
+    """Regime-appropriate one-liner used when no insight rules fire."""
+    return INSIGHT_FALLBACK_MAP.get(transition.get("status", ""),
+                                     "Regime unchanged — follow the playbook.")
+
+
+def detect_data_status(nifty_candles: list[list]) -> dict:
+    """
+    Determine what the data in this JSON actually represents.
+    Returns data_as_of date and whether the most recent candle is intraday-partial.
+
+    Rule:
+      If last candle date == today (IST) AND current IST time < 15:30 on a
+      weekday → intraday partial (today's candle not yet closed).
+      Otherwise → EOD final.
+
+    This is the authoritative answer to "is this today's close or not?".
+    """
+    now = datetime.now()
+
+    if not nifty_candles:
+        return {
+            "data_as_of": None,
+            "data_as_of_label": "— unavailable —",
+            "is_intraday_partial": False,
+            "status_text": "✗ NO DATA",
+        }
+
+    # Upstox candle format: [timestamp, O, H, L, C, volume, OI]
+    # Timestamp may be 'YYYY-MM-DDTHH:MM:SS+05:30' or similar ISO string.
+    last_ts = str(nifty_candles[-1][0])
+    last_date_str = last_ts[:10]  # YYYY-MM-DD
+    try:
+        last_date = datetime.strptime(last_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return {
+            "data_as_of": None,
+            "data_as_of_label": "— unavailable —",
+            "is_intraday_partial": False,
+            "status_text": "✗ NO DATA",
+        }
+
+    today = now.date()
+    is_weekday = today.weekday() < 5                 # Mon–Fri
+    current_minutes = now.hour * 60 + now.minute
+    market_close_minutes = 15 * 60 + 30              # 15:30 IST
+
+    is_intraday_partial = (
+        last_date == today
+        and is_weekday
+        and current_minutes < market_close_minutes
+    )
+
+    data_as_of_label = last_date.strftime("%a %d %b %Y") + " close"
+    if is_intraday_partial:
+        status_text = "⚠ INTRADAY — today's candle not yet closed"
+    elif last_date == today:
+        status_text = "✓ EOD final (today's close)"
+    else:
+        status_text = "✓ EOD final"
+
+    return {
+        "data_as_of": last_date.strftime("%Y-%m-%d"),
+        "data_as_of_label": data_as_of_label,
+        "is_intraday_partial": is_intraday_partial,
+        "status_text": status_text,
     }
 
 
@@ -1020,13 +1161,20 @@ def build_dashboard_json(
     nifty_key = MARKET_SYMBOLS.get("NIFTY_50", {}).get("key", "")
     nifty_candles = raw_index_data.get(nifty_key, [])
 
+    # Data status: is this EOD final or intraday partial?
+    data_status = detect_data_status(nifty_candles)
+
     insight = compute_market_insight(
         nifty_data, vix_data, nifty_candles, real_breadth, breadth_history
     )
+    insight_fallback = compute_insight_fallback(transition)
 
     playbook = compute_playbook(
         market_regime["regime"], sector_processed, transition
     )
+    # Today's Mode — lives inside the playbook block so the HTML can render it
+    # as the first thing inside the Playbook card.
+    playbook["today_mode"] = compute_today_mode(transition)
 
     scan_here = compute_scan_here(sector_processed)
 
@@ -1051,7 +1199,12 @@ def build_dashboard_json(
             "data_source": "Upstox API v2",
             "index_lookback_days": INDEX_LOOKBACK_DAYS,
             "breadth_lookback_days": BREADTH_LOOKBACK_DAYS,
-            "schema_version": "1.2",
+            "schema_version": "1.3",
+            # Data status — what this JSON actually represents
+            "data_as_of":          data_status["data_as_of"],
+            "data_as_of_label":    data_status["data_as_of_label"],
+            "is_intraday_partial": data_status["is_intraday_partial"],
+            "data_status_text":    data_status["status_text"],
         },
         "market_pulse": {
             "nifty":      market_processed.get("NIFTY_50"),
@@ -1063,6 +1216,7 @@ def build_dashboard_json(
         "regime_transition": transition,
         "breadth": breadth_block,
         "market_insight": insight,
+        "insight_fallback_text": insight_fallback,
         "playbook": playbook,
         "scan_here": scan_here,
         "sector_regimes": sector_processed,
@@ -1200,16 +1354,26 @@ def main():
 
     # -- Summary --
     elapsed = time.time() - start_time
+    meta = dashboard["meta"]
     regime = dashboard["market_regime"]["regime"]
     trans = dashboard["regime_transition"]
     pb = dashboard["playbook"]
+    tm = pb.get("today_mode", {})
+    sh = dashboard["scan_here"]
     modules = ", ".join(m["module"] for m in pb["run"]) or "— stand aside —"
     nifty_close = dashboard["market_pulse"]["nifty"]["current_close"]
     vix_close = dashboard["market_pulse"]["vix"]["current_close"]
     breadth_val = dashboard["breadth"]["breadth_pct"]
 
+    def _fmt_scan(items):
+        return ", ".join(f"{i['sector']} ({i['distance_pct']:+.1f}%)" for i in items) or "—"
+
     print(f"\n{'=' * 65}")
     print(f"  Done in {elapsed:.1f}s  |  Output: {output_path}")
+    print(f"")
+    print(f"  DATA AS OF      {meta['data_as_of_label']}")
+    print(f"  UPDATED         {meta['generated_date']} · {meta['generated_time']}")
+    print(f"  STATUS          {meta['data_status_text']}")
     print(f"")
     print(f"  Nifty 50:       {nifty_close}")
     print(f"  India VIX:      {vix_close}")
@@ -1219,17 +1383,30 @@ def main():
         print(f"  Breadth:        unavailable (using sector proxy)")
     print(f"  Regime:         {regime}")
     print(f"  Transition:     {trans['status']}  ({trans['direction']}, day {trans['days_in_regime']})")
+    print(f"")
+    print(f"  ── Today's Mode ──")
+    print(f"    MODE       {tm.get('mode', '—')}")
+    print(f"    WAIT FOR   {tm.get('wait_for', '—')}")
+    print(f"    DON'T      {tm.get('dont', '—')}")
+    print(f"")
     print(f"  Playbook RUN:   {modules}")
     if pb['override']:
         print(f"  OVERRIDE:       {pb['override']}")
-    print(f"  Size:           {pb['size_rule']}  {pb['size_reason']}")
     print(f"  Focus sectors:  {', '.join(pb['focus_sectors']) or '—'}")
     print(f"  Avoid sectors:  {', '.join(pb['avoid_sectors']) or '—'}")
+    print(f"")
+    print(f"  Scan Here:")
+    print(f"    READY       {_fmt_scan(sh['ready'])}")
+    print(f"    EXTENDED    {_fmt_scan(sh['extended'])}    (wait for pullback)")
+    print(f"    WEAK        {_fmt_scan(sh['weak'])}        (M2 only)")
     if dashboard['market_insight']:
         print(f"")
         print(f"  Insight:")
         for i in dashboard['market_insight']:
             print(f"    → {i['text']}")
+    else:
+        print(f"")
+        print(f"  Insight:        → {dashboard['insight_fallback_text']}")
     print(f"")
     print(f"  Sector Regimes:")
     for sid, sdata in dashboard["sector_regimes"].items():
