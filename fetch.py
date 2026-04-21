@@ -45,32 +45,34 @@ import requests
 # 1. CONFIGURATION
 # ---------------------------------------------------------------------------
 
-# --- Index instrument keys (Upstox format) ---
+# --- Desired indices: friendly_id → search terms + label ---
+# The "search" list contains substrings to match against Upstox's
+# instrument names (case-insensitive).  The resolver picks the best match.
 
-MARKET_SYMBOLS = {
-    "NIFTY_50":   {"key": "NSE_INDEX|Nifty 50",        "label": "Nifty 50",        "type": "market"},
-    "BANK_NIFTY": {"key": "NSE_INDEX|Nifty Bank",      "label": "Bank Nifty",      "type": "market"},
-    "INDIA_VIX":  {"key": "NSE_INDEX|India VIX",        "label": "India VIX",       "type": "vix"},
-    "MIDCAP":     {"key": "NSE_INDEX|Nifty Midcap 50",  "label": "Nifty Midcap 50", "type": "market"},
+MARKET_SYMBOLS_WANTED = {
+    "NIFTY_50":   {"search": ["Nifty 50"],                      "label": "Nifty 50",        "type": "market"},
+    "BANK_NIFTY": {"search": ["Nifty Bank"],                    "label": "Bank Nifty",      "type": "market"},
+    "INDIA_VIX":  {"search": ["India VIX", "INDIA VIX", "VIX"], "label": "India VIX",       "type": "vix"},
+    "MIDCAP":     {"search": ["Nifty Midcap 50", "MIDCAP 50"],  "label": "Nifty Midcap 50", "type": "market"},
 }
 
-SECTOR_SYMBOLS = {
-    "BANK":             {"key": "NSE_INDEX|Nifty Bank",               "label": "Nifty Bank"},
-    "IT":               {"key": "NSE_INDEX|Nifty IT",                 "label": "Nifty IT"},
-    "FIN_SERVICES":     {"key": "NSE_INDEX|Nifty Financial Services", "label": "Nifty Financial Services"},
-    "AUTO":             {"key": "NSE_INDEX|Nifty Auto",               "label": "Nifty Auto"},
-    "FMCG":             {"key": "NSE_INDEX|Nifty FMCG",              "label": "Nifty FMCG"},
-    "METAL":            {"key": "NSE_INDEX|Nifty Metal",              "label": "Nifty Metal"},
-    "PHARMA":           {"key": "NSE_INDEX|Nifty Pharma",             "label": "Nifty Pharma"},
-    "REALTY":            {"key": "NSE_INDEX|Nifty Realty",             "label": "Nifty Realty"},
-    "OIL_GAS":          {"key": "NSE_INDEX|Nifty Oil and Gas",       "label": "Nifty Oil & Gas"},
-    "CONSUMER_DURABLES":{"key": "NSE_INDEX|Nifty Consumer Durables", "label": "Nifty Consumer Durables"},
+SECTOR_SYMBOLS_WANTED = {
+    "BANK":             {"search": ["Nifty Bank"],                                         "label": "Nifty Bank"},
+    "IT":               {"search": ["Nifty IT"],                                           "label": "Nifty IT"},
+    "FIN_SERVICES":     {"search": ["Nifty Fin Service", "Nifty Financial", "FINNIFTY"],   "label": "Nifty Fin Services"},
+    "AUTO":             {"search": ["Nifty Auto"],                                         "label": "Nifty Auto"},
+    "FMCG":             {"search": ["Nifty FMCG"],                                        "label": "Nifty FMCG"},
+    "METAL":            {"search": ["Nifty Metal"],                                        "label": "Nifty Metal"},
+    "PHARMA":           {"search": ["Nifty Pharma"],                                       "label": "Nifty Pharma"},
+    "REALTY":            {"search": ["Nifty Realty"],                                       "label": "Nifty Realty"},
+    "OIL_GAS":          {"search": ["Nifty Oil", "Oil & Gas", "Oil and Gas"],              "label": "Nifty Oil & Gas"},
+    "CONSUMER_DURABLES":{"search": ["Nifty Consu", "Consumer Durable"],                    "label": "Nifty Consumer Durables"},
 }
 
-# Merge unique instrument keys for index fetching
-ALL_INDEX_KEYS: dict[str, str] = {}  # instrument_key -> friendly_id
-for sid, meta in {**MARKET_SYMBOLS, **SECTOR_SYMBOLS}.items():
-    ALL_INDEX_KEYS[meta["key"]] = sid
+# These dicts get populated at runtime by resolve_instrument_keys()
+MARKET_SYMBOLS: dict  = {}
+SECTOR_SYMBOLS: dict  = {}
+ALL_INDEX_KEYS: dict[str, str] = {}
 
 # Lookback periods
 INDEX_LOOKBACK_DAYS = 365   # 1 year for index data (200 EMA warm-up)
@@ -88,6 +90,138 @@ BREADTH_WORKERS = 5       # parallel threads for breadth stock fetches
 # NSE India API for Nifty 500 constituents
 NSE_BASE = "https://www.nseindia.com"
 NSE_INDEX_API = f"{NSE_BASE}/api/equity-stockIndices"
+
+# Upstox instruments file
+UPSTOX_INSTRUMENTS_URL = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz"
+
+
+# ---------------------------------------------------------------------------
+# 1b. INSTRUMENT KEY RESOLUTION
+# ---------------------------------------------------------------------------
+
+def resolve_instrument_keys():
+    """
+    Download the Upstox instruments JSON and resolve the correct
+    instrument_key for every index we need.
+
+    This avoids hardcoding keys that may not match Upstox's exact naming.
+    The instruments file is ~10 MB gzipped; we stream-parse it and keep
+    only NSE_INDEX entries.
+    """
+    global MARKET_SYMBOLS, SECTOR_SYMBOLS, ALL_INDEX_KEYS
+
+    print("\n[KEYS] Downloading Upstox instruments file ...")
+
+    # --- Download and parse ---
+    nse_indices: list[dict] = []
+    try:
+        import gzip
+        import io
+
+        r = requests.get(UPSTOX_INSTRUMENTS_URL, timeout=30)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+
+        # Try gzip first; if it fails, try raw JSON
+        try:
+            raw = gzip.decompress(r.content)
+        except Exception:
+            raw = r.content
+
+        all_instruments = json.loads(raw)
+        nse_indices = [
+            inst for inst in all_instruments
+            if inst.get("segment") == "NSE_INDEX"
+        ]
+        print(f"[KEYS] Found {len(nse_indices)} NSE_INDEX instruments")
+
+    except Exception as e:
+        print(f"[KEYS] ✗ Failed to download instruments: {e}")
+        print("[KEYS] Falling back to hardcoded keys (some may be wrong)")
+        _use_hardcoded_keys()
+        return
+
+    # --- Build lookup: lowercase name → instrument record ---
+    lookup: dict[str, dict] = {}
+    for inst in nse_indices:
+        name = inst.get("name", "") or inst.get("trading_symbol", "")
+        if name:
+            lookup[name.lower()] = inst
+
+    # Log all available NSE_INDEX names for debugging
+    print(f"[KEYS] Available indices: {', '.join(sorted(lookup.keys()))}")
+
+    # --- Resolve each wanted symbol ---
+    def _find(search_terms: list[str]) -> dict | None:
+        """Find the best matching instrument for a list of search terms."""
+        for term in search_terms:
+            term_lower = term.lower()
+            # Exact match first
+            if term_lower in lookup:
+                return lookup[term_lower]
+            # Substring match
+            for name, inst in lookup.items():
+                if term_lower in name:
+                    return inst
+        return None
+
+    # Resolve market symbols
+    MARKET_SYMBOLS = {}
+    for sid, wanted in MARKET_SYMBOLS_WANTED.items():
+        inst = _find(wanted["search"])
+        if inst:
+            key = inst["instrument_key"]
+            MARKET_SYMBOLS[sid] = {"key": key, "label": wanted["label"], "type": wanted.get("type", "market")}
+            print(f"[KEYS]   {sid:22s} → {key}")
+        else:
+            print(f"[KEYS]   {sid:22s} → ✗ NOT FOUND (searched: {wanted['search']})")
+
+    # Resolve sector symbols
+    SECTOR_SYMBOLS = {}
+    for sid, wanted in SECTOR_SYMBOLS_WANTED.items():
+        inst = _find(wanted["search"])
+        if inst:
+            key = inst["instrument_key"]
+            SECTOR_SYMBOLS[sid] = {"key": key, "label": wanted["label"]}
+            print(f"[KEYS]   {sid:22s} → {key}")
+        else:
+            print(f"[KEYS]   {sid:22s} → ✗ NOT FOUND (searched: {wanted['search']})")
+
+    # Build merged key map
+    ALL_INDEX_KEYS.clear()
+    for sid, meta in {**MARKET_SYMBOLS, **SECTOR_SYMBOLS}.items():
+        ALL_INDEX_KEYS[meta["key"]] = sid
+
+    found = len(MARKET_SYMBOLS) + len(SECTOR_SYMBOLS)
+    wanted = len(MARKET_SYMBOLS_WANTED) + len(SECTOR_SYMBOLS_WANTED)
+    print(f"\n[KEYS] Resolved {found}/{wanted} instrument keys")
+
+
+def _use_hardcoded_keys():
+    """Fallback: use best-guess hardcoded keys if instruments file is unavailable."""
+    global MARKET_SYMBOLS, SECTOR_SYMBOLS, ALL_INDEX_KEYS
+
+    MARKET_SYMBOLS = {
+        "NIFTY_50":   {"key": "NSE_INDEX|Nifty 50",       "label": "Nifty 50",        "type": "market"},
+        "BANK_NIFTY": {"key": "NSE_INDEX|Nifty Bank",     "label": "Bank Nifty",      "type": "market"},
+        "INDIA_VIX":  {"key": "NSE_INDEX|India VIX",      "label": "India VIX",       "type": "vix"},
+        "MIDCAP":     {"key": "NSE_INDEX|Nifty Midcap 50","label": "Nifty Midcap 50", "type": "market"},
+    }
+    SECTOR_SYMBOLS = {
+        "BANK":             {"key": "NSE_INDEX|Nifty Bank",               "label": "Nifty Bank"},
+        "IT":               {"key": "NSE_INDEX|Nifty IT",                 "label": "Nifty IT"},
+        "FIN_SERVICES":     {"key": "NSE_INDEX|Nifty Financial Services", "label": "Nifty Fin Services"},
+        "AUTO":             {"key": "NSE_INDEX|Nifty Auto",               "label": "Nifty Auto"},
+        "FMCG":             {"key": "NSE_INDEX|Nifty FMCG",              "label": "Nifty FMCG"},
+        "METAL":            {"key": "NSE_INDEX|Nifty Metal",              "label": "Nifty Metal"},
+        "PHARMA":           {"key": "NSE_INDEX|Nifty Pharma",             "label": "Nifty Pharma"},
+        "REALTY":            {"key": "NSE_INDEX|Nifty Realty",             "label": "Nifty Realty"},
+        "OIL_GAS":          {"key": "NSE_INDEX|Nifty Oil and Gas",       "label": "Nifty Oil & Gas"},
+        "CONSUMER_DURABLES":{"key": "NSE_INDEX|Nifty Consumer Durables", "label": "Nifty Consumer Durables"},
+    }
+    ALL_INDEX_KEYS.clear()
+    for sid, meta in {**MARKET_SYMBOLS, **SECTOR_SYMBOLS}.items():
+        ALL_INDEX_KEYS[meta["key"]] = sid
 
 
 # ---------------------------------------------------------------------------
@@ -717,7 +851,7 @@ def main():
     print("=" * 65)
 
     # -- Step 1: Authenticate --
-    print("\n[STEP 1/5] Authenticating with Upstox ...")
+    print("\n[STEP 1/6] Authenticating with Upstox ...")
     try:
         access_token = get_access_token()
     except Exception as e:
@@ -725,8 +859,16 @@ def main():
         traceback.print_exc()
         sys.exit(1)
 
-    # -- Step 2: Fetch index data --
-    print("\n[STEP 2/5] Fetching index historical data ...")
+    # -- Step 2: Resolve instrument keys --
+    print("\n[STEP 2/6] Resolving instrument keys from Upstox ...")
+    resolve_instrument_keys()
+
+    if "NIFTY_50" not in MARKET_SYMBOLS:
+        print("\n[FATAL] Could not resolve Nifty 50 instrument key")
+        sys.exit(1)
+
+    # -- Step 3: Fetch index data --
+    print("\n[STEP 3/6] Fetching index historical data ...")
     try:
         raw_index_data = fetch_all_index_data(access_token)
     except Exception as e:
@@ -740,7 +882,7 @@ def main():
         sys.exit(1)
 
     # -- Step 3: Fetch Nifty 500 constituents --
-    print("\n[STEP 3/5] Fetching Nifty 500 constituent list from NSE ...")
+    print("\n[STEP 4/6] Fetching Nifty 500 constituent list from NSE ...")
     try:
         constituents = fetch_nifty500_constituents()
     except Exception as e:
@@ -750,7 +892,7 @@ def main():
     # -- Step 4: Compute breadth --
     breadth_data = None
     if constituents:
-        print(f"\n[STEP 4/5] Computing market breadth ({len(constituents)} stocks) ...")
+        print(f"\n[STEP 5/6] Computing market breadth ({len(constituents)} stocks) ...")
         try:
             breadth_data = compute_market_breadth(constituents, access_token)
             pct = breadth_data["breadth_pct"]
@@ -761,10 +903,10 @@ def main():
             print(f"  [BREADTH] Breadth computation failed: {e}")
             traceback.print_exc()
     else:
-        print("\n[STEP 4/5] Skipping breadth (no constituent list) — will use sector proxy")
+        print("\n[STEP 5/6] Skipping breadth (no constituent list) — will use sector proxy")
 
     # -- Step 5: Process and write JSON --
-    print("\n[STEP 5/5] Processing data, classifying regimes, writing JSON ...")
+    print("\n[STEP 6/6] Processing data, classifying regimes, writing JSON ...")
     dashboard = build_dashboard_json(raw_index_data, breadth_data)
 
     output_path = os.environ.get("OUTPUT_PATH", "dashboard_data.json")
