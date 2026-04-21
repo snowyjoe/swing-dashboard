@@ -1,12 +1,12 @@
 {
   "meta": {
-    "generated_at": "2026-04-21T11:10:46.612814",
+    "generated_at": "2026-04-21T12:40:25.884077",
     "generated_date": "2026-04-21",
-    "generated_time": "11:10:46",
+    "generated_time": "12:40 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
-    "schema_version": "1.1"
+    "schema_version": "1.2"
   },
   "market_pulse": {
     "nifty": {
@@ -75,6 +75,20 @@
     "description": "Nifty above 20 & 50 EMA. VIX elevated (18.8). (Nifty 500)",
     "colour": "green"
   },
+  "regime_transition": {
+    "history": [
+      {
+        "date": "2026-04-21",
+        "regime": "Bullish Trending",
+        "label": "BULL",
+        "colour": "bull"
+      }
+    ],
+    "status": "FRESH BULL",
+    "days_in_regime": 1,
+    "direction": "improving",
+    "note": "Day 1 confirming — size half, do not chase"
+  },
   "breadth": {
     "breadth_pct": 91.6,
     "above_ema": 458,
@@ -83,6 +97,76 @@
     "total_constituents": 500,
     "total_computed": 500,
     "index_used": "NIFTY 500"
+  },
+  "market_insight": [],
+  "playbook": {
+    "run": [
+      {
+        "module": "M1",
+        "priority": "primary",
+        "name": "Trend Pullback"
+      },
+      {
+        "module": "M3",
+        "priority": "secondary",
+        "name": "Range Breakout"
+      }
+    ],
+    "skip": [
+      {
+        "module": "M2",
+        "name": "Oversold Bounce"
+      }
+    ],
+    "focus_sectors": [
+      "BANK",
+      "FIN_SERVICES",
+      "AUTO",
+      "FMCG",
+      "METAL",
+      "PHARMA",
+      "REALTY",
+      "OIL_GAS",
+      "CONSUMER_DURABLES"
+    ],
+    "watch_sectors": [],
+    "avoid_sectors": [
+      "IT"
+    ],
+    "cap_new_entries": 2,
+    "size_rule": "half",
+    "size_reason": "FRESH BULL day 1 — confirm before full size",
+    "override": null
+  },
+  "scan_here": {
+    "strong": [
+      {
+        "sector": "METAL",
+        "distance_pct": 6.13
+      },
+      {
+        "sector": "REALTY",
+        "distance_pct": 5.66
+      },
+      {
+        "sector": "CONSUMER_DURABLES",
+        "distance_pct": 5.4
+      }
+    ],
+    "weak": [
+      {
+        "sector": "PHARMA",
+        "distance_pct": 0.58
+      },
+      {
+        "sector": "IT",
+        "distance_pct": 2.22
+      },
+      {
+        "sector": "OIL_GAS",
+        "distance_pct": 2.24
+      }
+    ]
   },
   "sector_regimes": {
     "BANK": {
@@ -100,7 +184,7 @@
       "instrument_key": "NSE_INDEX|Nifty Bank",
       "regime": "Bullish",
       "position_size_rule": "100% of calculated size",
-      "regime_colour": "green"
+      "regime_colour": "side"
     },
     "IT": {
       "current_close": 31585.75,
@@ -117,7 +201,7 @@
       "instrument_key": "NSE_INDEX|Nifty IT",
       "regime": "Correcting",
       "position_size_rule": "Skip trade entirely",
-      "regime_colour": "orange"
+      "regime_colour": "correct"
     },
     "FIN_SERVICES": {
       "current_close": 26537.1,
@@ -134,7 +218,7 @@
       "instrument_key": "NSE_INDEX|Nifty Fin Service",
       "regime": "Bullish",
       "position_size_rule": "100% of calculated size",
-      "regime_colour": "green"
+      "regime_colour": "side"
     },
     "AUTO": {
       "current_close": 26522.3,
@@ -151,7 +235,7 @@
       "instrument_key": "NSE_INDEX|Nifty Auto",
       "regime": "Bullish",
       "position_size_rule": "100% of calculated size",
-      "regime_colour": "green"
+      "regime_colour": "side"
     },
     "FMCG": {
       "current_close": 49555.75,
@@ -168,7 +252,7 @@
       "instrument_key": "NSE_INDEX|Nifty FMCG",
       "regime": "Bullish",
       "position_size_rule": "100% of calculated size",
-      "regime_colour": "green"
+      "regime_colour": "side"
     },
     "METAL": {
       "current_close": 12829.65,
@@ -185,7 +269,7 @@
       "instrument_key": "NSE_INDEX|Nifty Metal",
       "regime": "Bullish",
       "position_size_rule": "100% of calculated size",
-      "regime_colour": "green"
+      "regime_colour": "side"
     },
     "PHARMA": {
       "current_close": 22456.75,
@@ -202,7 +286,7 @@
       "instrument_key": "NSE_INDEX|Nifty Pharma",
       "regime": "Bullish",
       "position_size_rule": "100% of calculated size",
-      "regime_colour": "green"
+      "regime_colour": "side"
     },
     "REALTY": {
       "current_close": 782.05,
@@ -219,7 +303,7 @@
       "instrument_key": "NSE_INDEX|Nifty Realty",
       "regime": "Bullish",
       "position_size_rule": "100% of calculated size",
-      "regime_colour": "green"
+      "regime_colour": "side"
     },
     "OIL_GAS": {
       "current_close": 11434.4,
@@ -236,24 +320,24 @@
       "instrument_key": "NSE_INDEX|NIFTY OIL AND GAS",
       "regime": "Bullish",
       "position_size_rule": "100% of calculated size",
-      "regime_colour": "green"
+      "regime_colour": "side"
     },
     "CONSUMER_DURABLES": {
-      "current_close": 11444.85,
-      "prev_close": 11414.05,
-      "change_pct": 0.27,
-      "ema_20": 11041.85,
-      "ema_50": 11199.03,
-      "ema_200": 11660.43,
-      "atr_14": 216.75,
-      "high_52w": 12716.2,
-      "low_52w": 10298.5,
+      "current_close": 37949.35,
+      "prev_close": 38029.9,
+      "change_pct": -0.21,
+      "ema_20": 36005.9,
+      "ema_50": 35979.07,
+      "ema_200": 37131.83,
+      "atr_14": 930.73,
+      "high_52w": 40472.45,
+      "low_52w": 32587.95,
       "candle_count": 248,
       "label": "Nifty Consumer Durables",
-      "instrument_key": "NSE_INDEX|Nifty Consumption",
+      "instrument_key": "NSE_INDEX|NIFTY CONSR DURBL",
       "regime": "Bullish",
       "position_size_rule": "100% of calculated size",
-      "regime_colour": "green"
+      "regime_colour": "side"
     }
   },
   "modules": {
