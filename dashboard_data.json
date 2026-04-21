@@ -1,12 +1,16 @@
 {
   "meta": {
-    "generated_at": "2026-04-21T13:23:17.019380",
+    "generated_at": "2026-04-21T15:02:42.865377",
     "generated_date": "2026-04-21",
-    "generated_time": "13:23 IST",
+    "generated_time": "15:02 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
-    "schema_version": "1.2"
+    "schema_version": "1.3",
+    "data_as_of": "2026-04-20",
+    "data_as_of_label": "Mon 20 Apr 2026 close",
+    "is_intraday_partial": false,
+    "data_status_text": "✓ EOD final"
   },
   "market_pulse": {
     "nifty": {
@@ -90,15 +94,16 @@
     "note": "Day 1 confirming — size half, do not chase"
   },
   "breadth": {
-    "breadth_pct": 91.6,
-    "above_ema": 458,
-    "below_ema": 42,
-    "errors": 0,
+    "breadth_pct": 92.3,
+    "above_ema": 250,
+    "below_ema": 21,
+    "errors": 229,
     "total_constituents": 500,
-    "total_computed": 500,
+    "total_computed": 271,
     "index_used": "NIFTY 500"
   },
   "market_insight": [],
+  "insight_fallback_text": "Day 1 confirmation — wait for strong closes, don't anticipate.",
   "playbook": {
     "run": [
       {
@@ -136,24 +141,15 @@
     "cap_new_entries": 2,
     "size_rule": "half",
     "size_reason": "FRESH BULL day 1 — confirm before full size",
-    "override": null
+    "override": null,
+    "today_mode": {
+      "mode": "TRADE — half size",
+      "wait_for": "Pullbacks to 20 EMA in ready sectors",
+      "dont": "Chase extended sectors, anticipate breakouts"
+    }
   },
   "scan_here": {
-    "strong": [
-      {
-        "sector": "METAL",
-        "distance_pct": 6.13
-      },
-      {
-        "sector": "REALTY",
-        "distance_pct": 5.66
-      },
-      {
-        "sector": "CONSUMER_DURABLES",
-        "distance_pct": 5.4
-      }
-    ],
-    "weak": [
+    "ready": [
       {
         "sector": "PHARMA",
         "distance_pct": 0.58
@@ -165,8 +161,40 @@
       {
         "sector": "OIL_GAS",
         "distance_pct": 2.24
+      },
+      {
+        "sector": "BANK",
+        "distance_pct": 2.7
+      },
+      {
+        "sector": "FIN_SERVICES",
+        "distance_pct": 2.99
       }
-    ]
+    ],
+    "extended": [
+      {
+        "sector": "METAL",
+        "distance_pct": 6.13
+      },
+      {
+        "sector": "REALTY",
+        "distance_pct": 5.66
+      },
+      {
+        "sector": "CONSUMER_DURABLES",
+        "distance_pct": 5.4
+      },
+      {
+        "sector": "FMCG",
+        "distance_pct": 3.05
+      },
+      {
+        "sector": "AUTO",
+        "distance_pct": 3.01
+      }
+    ],
+    "weak": [],
+    "ready_threshold_pct": 3.0
   },
   "sector_regimes": {
     "BANK": {
