@@ -1,8 +1,8 @@
 {
   "meta": {
-    "generated_at": "2026-04-22T11:08:55.165687",
+    "generated_at": "2026-04-22T16:19:52.508609",
     "generated_date": "2026-04-22",
-    "generated_time": "11:08 IST",
+    "generated_time": "16:19 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
@@ -10,9 +10,9 @@
     "data_as_of": "2026-04-21",
     "data_as_of_label": "Tue 21 Apr 2026 close",
     "is_intraday_partial": false,
-    "is_stale": false,
-    "data_freshness": "fresh",
-    "data_status_text": "✓ EOD final"
+    "is_stale": true,
+    "data_freshness": "stale",
+    "data_status_text": "⚠ BEHIND — expected Wed 22 Apr, using previous session"
   },
   "market_pulse": {
     "nifty": {
