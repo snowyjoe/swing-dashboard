@@ -74,6 +74,10 @@
     color: var(--correct);
     font-weight: 700;
   }
+  .header .meta .m-val.stale {
+    color: var(--side);
+    font-weight: 700;
+  }
   .header .meta .m-val.ok {
     color: var(--bull);
     font-weight: 600;
@@ -207,6 +211,13 @@
   .play-val.focus  { color: var(--bull);    }
   .play-val.watch  { color: var(--side);    }
   .play-val.avoid  { color: var(--correct); }
+  .play-val.entry-rule {
+    color: var(--text-2);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    font-style: italic;
+  }
   .play-val.none   { color: var(--text-3); font-style: italic; }
   .play-hint {
     font-size: 10px;
@@ -231,6 +242,11 @@
     color: var(--text);
     font-weight: 700;
     margin-right: 4px;
+  }
+  .play-footer .play-footer-note {
+    color: var(--text-3);
+    font-style: italic;
+    font-family: var(--sans);
   }
   .play-override {
     background: var(--chop-bg);
@@ -314,8 +330,8 @@
     line-height: 1.3;
   }
   .scan-col.ready    .scan-title { color: var(--bull);    }
-  .scan-col.extended .scan-title { color: var(--side);    }
-  .scan-col.weak     .scan-title { color: var(--correct); }
+  .scan-col.extended .scan-title { color: var(--correct); }
+  .scan-col.weak     .scan-title { color: var(--side);    }
   .scan-list {
     display: flex;
     flex-direction: column;
@@ -329,8 +345,12 @@
     border-radius: 4px;
   }
   .scan-item.ready    { background: var(--bull-bg);    color: var(--bull);    }
-  .scan-item.extended { background: var(--side-bg);    color: var(--side);    }
-  .scan-item.weak     { background: var(--correct-bg); color: var(--correct); }
+  .scan-item.extended {
+    background: var(--correct-bg);
+    color: var(--correct);
+    border: 1px dashed var(--correct);
+  }
+  .scan-item.weak     { background: var(--side-bg);    color: var(--side);    }
   .scan-item .name {
     font-size: 10px;
     font-weight: 700;
@@ -345,6 +365,88 @@
     padding: 7px 10px;
     font-size: 11px;
     color: var(--text-3);
+    font-style: italic;
+  }
+
+  /* ---------- Watchlist ---------- */
+  .watchlist {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .wl-col {
+    display: flex;
+    flex-direction: column;
+  }
+  .wl-col .wl-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    margin-bottom: 4px;
+  }
+  .wl-col .wl-sub {
+    font-size: 10px;
+    color: var(--text-3);
+    margin-bottom: 8px;
+  }
+  .wl-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .wl-item {
+    display: grid;
+    grid-template-columns: 80px 1fr auto;
+    gap: 10px;
+    padding: 6px 10px;
+    align-items: baseline;
+    border-bottom: 1px dashed var(--border-2);
+  }
+  .wl-item:last-child { border-bottom: none; }
+  .wl-item .wl-sector {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-3);
+  }
+  .wl-item .wl-symbol {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .wl-item .wl-metric {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .wl-empty {
+    padding: 7px 10px;
+    font-size: 11px;
+    color: var(--text-3);
+    font-style: italic;
+  }
+  .wl-m2-row {
+    grid-column: 1 / -1;
+    margin-top: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-2);
+  }
+  .wl-m2-inactive {
+    padding: 7px 10px;
+    font-size: 11px;
+    color: var(--text-3);
+    font-style: italic;
+  }
+  .wl-note {
+    padding: 7px 10px;
+    font-size: 12px;
+    color: var(--text-2);
+    background: var(--side-bg);
+    color: var(--side);
+    border-radius: 4px;
     font-style: italic;
   }
 
@@ -486,6 +588,7 @@
     .pulse-grid  { grid-template-columns: repeat(2, 1fr); }
     .sector-grid { grid-template-columns: repeat(2, 1fr); }
     .scan        { grid-template-columns: 1fr; }
+    .watchlist   { grid-template-columns: 1fr; }
     .play-row    { grid-template-columns: 64px 1fr; }
     .play-row .play-hint { grid-column: 2; font-size: 10px; }
     .transition  { flex-direction: column; align-items: flex-start; gap: 12px; }
@@ -542,7 +645,12 @@ function renderHeader(meta) {
   const asOf     = escapeHtml(meta.data_as_of_label || '—');
   const updated  = escapeHtml(`${meta.generated_date} · ${meta.generated_time}`);
   const statText = escapeHtml(meta.data_status_text || '');
-  const statCls  = meta.is_intraday_partial ? 'warn' : 'ok';
+
+  // Three states: fresh (green), intraday (red), stale (amber)
+  let statCls = 'ok';
+  if (meta.is_intraday_partial) statCls = 'warn';
+  else if (meta.is_stale)       statCls = 'stale';
+
   return `
     <div class="header">
       <h1>Swing Dashboard</h1>
@@ -602,10 +710,6 @@ function renderPlaybook(p) {
     ? p.skip.map(s => s.module).join('<span class="sep">·</span>')
     : '<span class="none">none</span>';
 
-  const listOr = (arr, fallback) =>
-    (arr && arr.length) ? arr.map(s => s.replace(/_/g, ' ')).join('<span class="sep">·</span>')
-                        : `<span class="none">${fallback}</span>`;
-
   return `
     <div class="card playbook">
       <div class="card-label">Today's Playbook</div>
@@ -622,22 +726,13 @@ function renderPlaybook(p) {
         <div class="play-hint"></div>
       </div>
       <div class="play-row">
-        <div class="play-key">FOCUS</div>
-        <div class="play-val focus">${listOr(p.focus_sectors, 'none')}</div>
-        <div class="play-hint">full size</div>
-      </div>
-      <div class="play-row">
-        <div class="play-key">WATCH</div>
-        <div class="play-val watch">${listOr(p.watch_sectors, '—')}</div>
-        <div class="play-hint">half size</div>
-      </div>
-      <div class="play-row">
-        <div class="play-key">AVOID</div>
-        <div class="play-val avoid">${listOr(p.avoid_sectors, '—')}</div>
-        <div class="play-hint">skip</div>
+        <div class="play-key">ENTRY</div>
+        <div class="play-val entry-rule">No setup = No trade today</div>
+        <div class="play-hint"></div>
       </div>
       <div class="play-footer">
         <span><strong>Cap:</strong> ${p.cap_new_entries} new entries</span>
+        <span class="play-footer-note">Not trading today is a valid outcome.</span>
       </div>
     </div>`;
 }
@@ -660,11 +755,13 @@ function renderInsight(insights, fallbackText) {
 }
 
 function renderScan(sc, asOfLabel) {
-  const mkItem = (s, cls) =>
-    `<div class="scan-item ${cls}">
-      <span class="name">${s.sector.replace(/_/g, ' ')}</span>
+  const mkItem = (s, cls) => {
+    const prefix = (cls === 'extended') ? '⊘ ' : '';
+    return `<div class="scan-item ${cls}">
+      <span class="name">${prefix}${s.sector.replace(/_/g, ' ')}</span>
       <span class="val">${signed(s.distance_pct, 1)}</span>
     </div>`;
+  };
 
   const mkList = (items, cls) =>
     (items && items.length)
@@ -684,8 +781,8 @@ function renderScan(sc, asOfLabel) {
           <div class="scan-list">${mkList(sc.ready, 'ready')}</div>
         </div>
         <div class="scan-col extended">
-          <div class="scan-title">Extended · wait</div>
-          <div class="scan-sub">&gt; +${thresh}% above 20 EMA — wait for pullback, don't chase</div>
+          <div class="scan-title">⊘ Extended · NO ENTRY</div>
+          <div class="scan-sub">&gt; +${thresh}% above 20 EMA — NO ENTRY, pullback required</div>
           <div class="scan-list">${mkList(sc.extended, 'extended')}</div>
         </div>
         <div class="scan-col weak">
@@ -693,6 +790,78 @@ function renderScan(sc, asOfLabel) {
           <div class="scan-sub">Below 20 EMA — M2 in Recovering / Correcting regime</div>
           <div class="scan-list">${mkList(sc.weak, 'weak')}</div>
         </div>
+      </div>
+    </div>`;
+}
+
+function renderWatchlist(wl, asOfLabel) {
+  if (!wl || (!wl.m1 && !wl.m3 && !wl.m2)) return '';
+
+  const asOf = asOfLabel ? `<span class="as-of">as of ${escapeHtml(asOfLabel)}</span>` : '';
+  const noteLine = wl.universe_note
+    ? `<div class="wl-note">${escapeHtml(wl.universe_note)}</div>`
+    : '';
+
+  const mkList = (items, label) => {
+    if (!items || items.length === 0) {
+      return `<div class="wl-empty">— no matches —</div>`;
+    }
+    return items.map(s => `
+      <div class="wl-item">
+        <span class="wl-sector">${s.sector.replace(/_/g, ' ')}</span>
+        <span class="wl-symbol">${escapeHtml(s.symbol)}</span>
+        <span class="wl-metric">${escapeHtml(s.metric_value)}</span>
+      </div>
+    `).join('');
+  };
+
+  const total = wl.total_ranked || 0;
+
+  // M2 row: only shown as active list in Correcting/Recovering regime;
+  // otherwise a subtle "inactive" note so the trader knows it exists
+  // but isn't relevant today.
+  let m2Row = '';
+  if (wl.m2_active && wl.m2 && wl.m2.length) {
+    m2Row = `
+      <div class="wl-m2-row">
+        <div class="wl-col">
+          <div class="wl-title">M2 · Oversold (RSI14)</div>
+          <div class="wl-sub">WEAK sectors · RSI ≤ 38 · above 200 EMA</div>
+          <div class="wl-list">${mkList(wl.m2)}</div>
+        </div>
+      </div>`;
+  } else if (wl.m2_active) {
+    // Regime supports M2 but no candidates passed filters
+    m2Row = `
+      <div class="wl-m2-row">
+        <div class="wl-col">
+          <div class="wl-title">M2 · Oversold (RSI14)</div>
+          <div class="wl-m2-inactive">No quality oversold candidates in weak sectors today.</div>
+        </div>
+      </div>`;
+  } else {
+    m2Row = `
+      <div class="wl-m2-row">
+        <div class="wl-m2-inactive">M2 · Oversold — inactive in current regime</div>
+      </div>`;
+  }
+
+  return `
+    <div class="card">
+      <div class="card-label">Watchlist · ${total} name${total === 1 ? '' : 's'} ${asOf}</div>
+      ${noteLine}
+      <div class="watchlist">
+        <div class="wl-col">
+          <div class="wl-title">M1 · Near 20 EMA</div>
+          <div class="wl-sub">READY sectors · closest to 20 EMA · above it</div>
+          <div class="wl-list">${mkList(wl.m1)}</div>
+        </div>
+        <div class="wl-col">
+          <div class="wl-title">M3 · Tightest range</div>
+          <div class="wl-sub">READY sectors · 20d range ≤ 12%</div>
+          <div class="wl-list">${mkList(wl.m3)}</div>
+        </div>
+        ${m2Row}
       </div>
     </div>`;
 }
@@ -763,6 +932,7 @@ function render(data) {
     ${renderPlaybook(data.playbook)}
     ${renderInsight(data.market_insight, data.insight_fallback_text)}
     ${renderScan(data.scan_here, asOf)}
+    ${renderWatchlist(data.watchlist, asOf)}
     ${renderPulse(data.market_pulse, data.breadth, asOf)}
     ${renderSectors(data.sector_regimes, asOf)}
     ${renderRisk(data.risk_rules)}
