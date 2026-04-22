@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Swing Trading Dashboard — Data Fetch Script (fetch.py)  v1.3
+Swing Trading Dashboard — Data Fetch Script (fetch.py)  v1.5
 =============================================================
 Runs daily via GitHub Actions at 3:30 PM IST.
 
@@ -172,19 +172,9 @@ TODAY_MODE_MAP = {
 # Default when status doesn't match (early days of new regime, etc.)
 TODAY_MODE_DEFAULT = ("OBSERVE", "Regime to stabilise before committing", "Early conviction trades")
 
-# Insight fallback — when no rules fire, show regime-appropriate guidance
-# so the Insight block never says generic "no significant changes".
-INSIGHT_FALLBACK_MAP = {
-    "FRESH BULL":    "Day 1 confirmation — wait for strong closes, don't anticipate.",
-    "STABLE BULL":   "Trend intact — stick to the system.",
-    "IMPROVING":     "Regime climbing — re-engage cautiously, half size.",
-    "WEAKENING":     "Leadership thinning — tighten stops, no new longs.",
-    "CHOPPY":        "Regime flipping — stand aside until it settles.",
-    "STABLE SIDE":   "Range-bound — M3 breakouts only, with volume.",
-    "STABLE RECOV":  "Under 20 EMA but above 50 — M2 zone, size half.",
-    "STABLE CORR":   "Correction intact — M2 oversold bounces only.",
-    "STABLE BEAR":   "Bear regime — no trades.",
-}
+# Insight fallback — contextual state description (NOT instructions).
+# Implemented as a function below so it can reference days_in_regime.
+# See compute_insight_fallback().
 
 # Scan Here thresholds (% distance from 20 EMA)
 SCAN_READY_MAX = 3.0   # 0% to +3% → READY for M1/M3
@@ -418,6 +408,9 @@ def fetch_candles(
 
 def fetch_all_index_data(access_token: str) -> dict[str, list[list]]:
     from_date = (datetime.now() - timedelta(days=INDEX_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+    # Upstox historical API treats to_date as EXCLUSIVE — it returns candles
+    # up to but not including to_date. Pass tomorrow to include today's candle.
+    # This was the actual root cause of the N-1 data problem.
     to_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     result: dict[str, list[list]] = {}
@@ -494,7 +487,96 @@ def fetch_nifty500_constituents() -> list[dict]:
     return []
 
 
-def _fetch_stock_above_ema(args) -> tuple[str, bool | None]:
+# NSE India sector-index names used to map stock symbols → our sector codes.
+# These match the `index` query param NSE's API accepts.
+NSE_SECTOR_INDEX_NAMES = {
+    "BANK":              "NIFTY BANK",
+    "IT":                "NIFTY IT",
+    "FIN_SERVICES":      "NIFTY FINANCIAL SERVICES",
+    "AUTO":              "NIFTY AUTO",
+    "FMCG":              "NIFTY FMCG",
+    "METAL":             "NIFTY METAL",
+    "PHARMA":            "NIFTY PHARMA",
+    "REALTY":            "NIFTY REALTY",
+    "OIL_GAS":           "NIFTY OIL & GAS",
+    "CONSUMER_DURABLES": "NIFTY CONSUMER DURABLES",
+}
+
+
+def fetch_symbol_to_sector_map() -> dict[str, str]:
+    """
+    Build a map of {symbol: sector_code} by querying each NSE sector index
+    and pooling all constituents. A symbol can belong to multiple sector
+    indices (e.g. HDFCBANK is in both Bank and Financial Services) — in that
+    case we keep the FIRST match in NSE_SECTOR_INDEX_NAMES order, which is
+    the more specific / primary sector.
+
+    Used only by the watchlist — breadth and regime computation don't need
+    sector membership. If this fails, watchlist silently becomes empty
+    lists and the rest of the dashboard is unaffected.
+    """
+    session = _nse_session()
+    mapping: dict[str, str] = {}
+
+    for sector_code, index_name in NSE_SECTOR_INDEX_NAMES.items():
+        try:
+            r = session.get(NSE_INDEX_API, params={"index": index_name}, timeout=20)
+            if r.status_code == 200:
+                stocks = r.json().get("data", [])
+                added = 0
+                for s in stocks:
+                    symbol = s.get("symbol", "")
+                    # Skip the index row itself and empty rows
+                    if not symbol or symbol.startswith("NIFTY"):
+                        continue
+                    if symbol not in mapping:  # keep first match (primary sector)
+                        mapping[symbol] = sector_code
+                        added += 1
+                print(f"  [WATCH] {sector_code:20s} {added} stocks mapped")
+            else:
+                print(f"  [WATCH] {sector_code:20s} HTTP {r.status_code}")
+        except Exception as e:
+            print(f"  [WATCH] {sector_code:20s} error: {e}")
+        time.sleep(0.8)
+
+    session.close()
+    print(f"  [WATCH] Total symbols mapped to sectors: {len(mapping)}")
+    return mapping
+
+
+def _calc_rsi(closes: list[float], period: int = 14) -> float | None:
+    """Classic Wilder's RSI on a close series. Returns None if not enough data."""
+    if len(closes) < period + 1:
+        return None
+    gains = 0.0
+    losses = 0.0
+    for i in range(1, period + 1):
+        change = closes[i] - closes[i-1]
+        if change >= 0:
+            gains += change
+        else:
+            losses += -change
+    avg_gain = gains / period
+    avg_loss = losses / period
+    for i in range(period + 1, len(closes)):
+        change = closes[i] - closes[i-1]
+        gain = max(change, 0)
+        loss = max(-change, 0)
+        avg_gain = (avg_gain * (period - 1) + gain) / period
+        avg_loss = (avg_loss * (period - 1) + loss) / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return round(100 - (100 / (1 + rs)), 2)
+
+
+def _fetch_stock_metrics(args) -> tuple[str, dict | None]:
+    """
+    Fetch candles for a single stock and compute all metrics used by both
+    breadth (above_20ema flag) and the watchlist (close, ema20, range, rsi).
+
+    Returns (symbol, metrics_dict) or (symbol, None) on failure.
+    """
     symbol, upstox_key, access_token, from_date, to_date = args
     try:
         candles = fetch_candles(upstox_key, access_token, from_date, to_date)
@@ -502,21 +584,67 @@ def _fetch_stock_above_ema(args) -> tuple[str, bool | None]:
             return (symbol, None)
 
         closes = [c[4] for c in candles]
+        highs  = [c[2] for c in candles]
+        lows   = [c[3] for c in candles]
+
+        # 20 EMA (Wilder-compatible SMA seed + exponential smoothing)
         period = 20
         multiplier = 2 / (period + 1)
         ema = sum(closes[:period]) / period
         for c in closes[period:]:
             ema = (c - ema) * multiplier + ema
+        ema20 = ema
 
-        return (symbol, closes[-1] > ema)
+        # 200 EMA if we have enough data (used as quality filter for M2)
+        ema200 = None
+        if len(closes) >= 200:
+            m200 = 2 / 201
+            e = sum(closes[:200]) / 200
+            for c in closes[200:]:
+                e = (c - e) * m200 + e
+            ema200 = e
+
+        last_close = closes[-1]
+        recent20_hi = max(highs[-20:])
+        recent20_lo = min(lows[-20:])
+        range_pct = ((recent20_hi - recent20_lo) / recent20_lo * 100) if recent20_lo > 0 else None
+        dist_from_ema20_abs_pct = abs((last_close - ema20) / ema20 * 100) if ema20 > 0 else None
+        rsi14 = _calc_rsi(closes)
+
+        return (symbol, {
+            "close":            round(last_close, 2),
+            "ema20":            round(ema20, 2),
+            "ema200":           round(ema200, 2) if ema200 is not None else None,
+            "above_20ema":      last_close > ema20,
+            "above_200ema":     (ema200 is not None and last_close > ema200),
+            "dist_from_ema20_abs_pct": round(dist_from_ema20_abs_pct, 2) if dist_from_ema20_abs_pct is not None else None,
+            "range_pct":        round(range_pct, 2) if range_pct is not None else None,
+            "rsi14":            rsi14,
+        })
     except Exception:
         return (symbol, None)
 
 
-def compute_market_breadth(constituents: list[dict], access_token: str) -> dict:
-    from_date = (datetime.now() - timedelta(days=BREADTH_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
-    to_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+# Legacy name kept as a thin shim so nothing else breaks.
+def _fetch_stock_above_ema(args) -> tuple[str, bool | None]:
+    symbol, metrics = _fetch_stock_metrics(args)
+    if metrics is None:
+        return (symbol, None)
+    return (symbol, metrics["above_20ema"])
 
+
+def compute_market_breadth(constituents: list[dict], access_token: str) -> dict:
+    """
+    Single-pass fetch of all Nifty 500 constituents:
+      - Computes overall breadth (% above 20 EMA) for the regime classifier
+      - Also retains per-stock metrics for the watchlist layer
+
+    Returns a dict with both the breadth stats and `stock_metrics` keyed
+    by symbol so the caller can slice it later by sector for the watchlist.
+    """
+    from_date = (datetime.now() - timedelta(days=BREADTH_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+    # See note in fetch_all_index_data — to_date is exclusive in Upstox API.
+    to_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     print(f"\n[BREADTH] Computing breadth for {len(constituents)} stocks "
           f"({from_date} to {to_date}, {BREADTH_WORKERS} threads)\n")
@@ -528,19 +656,22 @@ def compute_market_breadth(constituents: list[dict], access_token: str) -> dict:
     below_count = 0
     error_count = 0
     total = len(tasks)
+    stock_metrics: dict[str, dict] = {}
 
     with ThreadPoolExecutor(max_workers=BREADTH_WORKERS) as executor:
-        futures = {executor.submit(_fetch_stock_above_ema, t): t[0] for t in tasks}
+        futures = {executor.submit(_fetch_stock_metrics, t): t[0] for t in tasks}
         done = 0
         for future in as_completed(futures):
             done += 1
-            symbol, result = future.result()
-            if result is True:
-                above_count += 1
-            elif result is False:
-                below_count += 1
-            else:
+            symbol, metrics = future.result()
+            if metrics is None:
                 error_count += 1
+            else:
+                stock_metrics[symbol] = metrics
+                if metrics["above_20ema"]:
+                    above_count += 1
+                else:
+                    below_count += 1
 
             if done % 50 == 0 or done == total:
                 computed = above_count + below_count
@@ -562,6 +693,7 @@ def compute_market_breadth(constituents: list[dict], access_token: str) -> dict:
         "total_constituents": total,
         "total_computed": computed,
         "index_used": f"NIFTY {total}" if total >= 400 else f"~{total} stocks",
+        "stock_metrics": stock_metrics,
     }
 
 
@@ -930,26 +1062,29 @@ def compute_playbook(
     regime: str,
     sector_regimes_full: dict,
     transition: dict,
+    scan_here: dict,
     open_trades: int = 0,
     max_open: int = 5,
 ) -> dict:
     """
     Build today's playbook. Collapses to stand-aside on CHOPPY regime.
     Halves size on FRESH BULL and WEAKENING transitions.
+
+    Sector guidance (READY / EXTENDED / WEAK) now lives ONLY in Scan Here.
+    The older FOCUS / WATCH / AVOID lines have been removed to eliminate the
+    two-source-of-truth problem — previously the playbook showed sectors
+    sorted by regime classification while scan sorted by distance from
+    20 EMA, and the two could contradict each other. Now there is one panel.
+
+    The playbook retains:
+      - Today's Mode (MODE / WAIT FOR / DON'T)
+      - RUN / SKIP modules
+      - ENTRY rule
+      - Position cap and size rule
     """
     run = [{"module": m, "priority": p, "name": n}
            for (m, p, n) in MODULE_MAP.get(regime, [])]
     skip = [{"module": m, "name": n} for (m, n) in SKIP_MAP.get(regime, [])]
-
-    focus, watch, avoid = [], [], []
-    for code, s in sector_regimes_full.items():
-        reg = s.get("regime", "")
-        if reg == "Bullish":
-            focus.append(code)
-        elif reg in ("Recovering", "Sideways"):
-            watch.append(code)
-        elif reg == "Correcting":
-            avoid.append(code)
 
     cap = max(0, max_open - open_trades)
     cap = min(cap, 2)
@@ -972,14 +1107,161 @@ def compute_playbook(
     return {
         "run": run,
         "skip": skip,
-        "focus_sectors": focus,
-        "watch_sectors": watch,
-        "avoid_sectors": avoid,
         "cap_new_entries": cap,
         "size_rule": size_rule,
         "size_reason": size_reason,
         "override": override,
     }
+
+
+# Watchlist config
+WATCHLIST_TOP_N = 5
+WATCHLIST_M3_MAX_RANGE_PCT = 12.0   # M3 requires ≤12% range
+WATCHLIST_M1_MAX_DIST_PCT  = 5.0    # M1 candidate must be within 5% of 20 EMA
+WATCHLIST_M2_MAX_RSI       = 38.0   # M2 quality filter
+
+
+def compute_watchlist(
+    stock_metrics: dict,
+    symbol_to_sector: dict,
+    scan_here: dict,
+    regime: str,
+) -> dict:
+    """
+    Derive three small ranked lists from per-stock metrics already fetched
+    during breadth computation. No extra API calls.
+
+    M1 · Near 20 EMA
+      Universe: stocks whose sector is in READY (scan_here.ready)
+      Sort:     dist_from_ema20_abs_pct ascending
+      Filter:   above_20ema == True (pullback must have held)
+      Top 5.
+
+    M3 · Tightest range
+      Universe: stocks whose sector is in READY
+      Sort:     range_pct ascending
+      Filter:   range_pct <= 12.0
+      Top 5.
+
+    M2 · Oversold (only shown when regime is Correcting or Recovering)
+      Universe: stocks whose sector is in WEAK (scan_here.weak)
+      Sort:     rsi14 ascending
+      Filter:   rsi14 <= 38 AND above_200ema == True (quality filter)
+      Top 5.
+
+    If a universe is empty (e.g. all sectors EXTENDED → no READY sectors)
+    the list is returned as [] — the UI renders "— none today —".
+    """
+    ready_sectors    = {item["sector"] for item in (scan_here or {}).get("ready",    [])}
+    weak_sectors     = {item["sector"] for item in (scan_here or {}).get("weak",     [])}
+
+    if not stock_metrics or not symbol_to_sector:
+        return {"m1": [], "m3": [], "m2": [], "m2_active": False,
+                "total_ranked": 0, "universe_note": "Watchlist unavailable (stock data or sector map missing)"}
+
+    # Only consider stocks we have BOTH metrics AND a sector for
+    candidates = []
+    for symbol, metrics in stock_metrics.items():
+        sector = symbol_to_sector.get(symbol)
+        if sector is None:
+            continue
+        candidates.append({"symbol": symbol, "sector": sector, **metrics})
+
+    # --- M1: near 20 EMA in READY sectors ---
+    m1_pool = [
+        c for c in candidates
+        if c["sector"] in ready_sectors
+        and c.get("above_20ema") is True
+        and c.get("dist_from_ema20_abs_pct") is not None
+        and c["dist_from_ema20_abs_pct"] <= WATCHLIST_M1_MAX_DIST_PCT
+    ]
+    m1_pool.sort(key=lambda c: c["dist_from_ema20_abs_pct"])
+    m1 = [{
+        "symbol":        c["symbol"],
+        "sector":        c["sector"],
+        "close":         c["close"],
+        "metric_label":  "dist from 20EMA",
+        "metric_value":  f"+{c['dist_from_ema20_abs_pct']:.1f}%",
+    } for c in m1_pool[:WATCHLIST_TOP_N]]
+
+    # --- M3: tightest range in READY sectors ---
+    m3_pool = [
+        c for c in candidates
+        if c["sector"] in ready_sectors
+        and c.get("range_pct") is not None
+        and c["range_pct"] <= WATCHLIST_M3_MAX_RANGE_PCT
+    ]
+    m3_pool.sort(key=lambda c: c["range_pct"])
+    m3 = [{
+        "symbol":        c["symbol"],
+        "sector":        c["sector"],
+        "close":         c["close"],
+        "metric_label":  "20d range",
+        "metric_value":  f"{c['range_pct']:.1f}%",
+    } for c in m3_pool[:WATCHLIST_TOP_N]]
+
+    # --- M2: oversold in WEAK sectors, only active in non-trending regimes ---
+    m2_active = regime in ("Correcting", "Recovering")
+    m2 = []
+    if m2_active:
+        m2_pool = [
+            c for c in candidates
+            if c["sector"] in weak_sectors
+            and c.get("above_200ema") is True
+            and c.get("rsi14") is not None
+            and c["rsi14"] <= WATCHLIST_M2_MAX_RSI
+        ]
+        m2_pool.sort(key=lambda c: c["rsi14"])
+        m2 = [{
+            "symbol":        c["symbol"],
+            "sector":        c["sector"],
+            "close":         c["close"],
+            "metric_label":  "RSI14",
+            "metric_value":  f"{c['rsi14']:.0f}",
+        } for c in m2_pool[:WATCHLIST_TOP_N]]
+
+    total = len(m1) + len(m3) + len(m2)
+    note = None
+    if not ready_sectors:
+        note = "No READY sectors today — M1 / M3 universe empty. Stand down."
+    elif total == 0:
+        note = "No candidates matched filters in ready sectors today."
+
+    return {
+        "m1": m1,
+        "m3": m3,
+        "m2": m2,
+        "m2_active": m2_active,
+        "total_ranked": total,
+        "universe_note": note,
+    }
+
+
+def compute_insight_fallback(transition: dict) -> str:
+    """
+    Describe what IS happening (state), not what to do (instruction).
+
+    The MODE block already tells the trader what to do. Repeating it here
+    in different words just dilutes both signals. Instead, when no rules
+    fire, give a one-line state description — the kind of thing a peer
+    would say if you asked "what's the market doing right now?".
+    """
+    status = transition.get("status", "")
+    days = transition.get("days_in_regime", 1)
+    plural = "" if days == 1 else "s"
+
+    mapping = {
+        "FRESH BULL":    "New bullish regime — day 1 above 20 EMA.",
+        "STABLE BULL":   f"Bullish regime intact for {days} session{plural}.",
+        "IMPROVING":     "Regime climbing from prior correction.",
+        "WEAKENING":     "Regime deteriorating — trend losing strength.",
+        "CHOPPY":        "Regime flipping — no stable state in last 5 sessions.",
+        "STABLE SIDE":   f"Range-bound for {days} session{plural}.",
+        "STABLE RECOV":  f"Below 20 EMA, above 50 EMA for {days} session{plural}.",
+        "STABLE CORR":   f"Correction intact for {days} session{plural}.",
+        "STABLE BEAR":   f"Bear regime for {days} session{plural}.",
+    }
+    return mapping.get(status, f"Current regime state: {status or 'unknown'}.")
 
 
 def compute_scan_here(sector_regimes_full: dict) -> dict:
@@ -1039,21 +1321,60 @@ def compute_today_mode(transition: dict) -> dict:
     return {"mode": mode, "wait_for": wait_for, "dont": dont}
 
 
-def compute_insight_fallback(transition: dict) -> str:
-    """Regime-appropriate one-liner used when no insight rules fire."""
-    return INSIGHT_FALLBACK_MAP.get(transition.get("status", ""),
-                                     "Regime unchanged — follow the playbook.")
+def _expected_trading_day(now: datetime) -> "datetime.date":
+    """
+    The most recent trading day whose EOD candle should be in the data.
+
+    Rules:
+      - On a weekday after market close (>= 15:30 IST) → today's EOD expected
+      - On a weekday before/during market → yesterday's EOD is the latest final
+      - Weekend → previous Friday
+
+    Note: Upstox's historical API treats to_date as exclusive. That's been
+    fixed upstream (we pass tomorrow). Today's EOD candle IS returned by
+    the API once the market day has progressed — testing confirms it's
+    available immediately after 15:30 IST, not delayed to 18:00 as an
+    earlier version of this function assumed.
+    """
+    d = now.date()
+    t = now.hour * 60 + now.minute
+    MARKET_CLOSE_IST = 15 * 60 + 30  # 15:30 IST
+
+    def _prev_trading_day(from_date):
+        p = from_date - timedelta(days=1)
+        while p.weekday() >= 5:
+            p -= timedelta(days=1)
+        return p
+
+    if d.weekday() >= 5:
+        # Weekend: expect last Friday
+        return _prev_trading_day(d + timedelta(days=1))
+
+    if t >= MARKET_CLOSE_IST:
+        return d  # after close on weekday — today's EOD should exist
+    else:
+        return _prev_trading_day(d)  # before close — yesterday is freshest final
 
 
 def detect_data_status(nifty_candles: list[list]) -> dict:
     """
     Determine what the data in this JSON actually represents.
-    Returns data_as_of date and whether the most recent candle is intraday-partial.
 
-    Rule:
-      If last candle date == today (IST) AND current IST time < 15:30 on a
-      weekday → intraday partial (today's candle not yet closed).
-      Otherwise → EOD final.
+    Three possible states:
+
+      ✓ EOD final
+           The most recent candle matches the expected trading day.
+           Safe to make swing decisions on this data.
+
+      ⚠ INTRADAY — today's candle not yet closed
+           Last candle is today but market hasn't closed (before 15:30 IST).
+           Don't make EOD-based decisions — the close could move.
+
+      ⚠ BEHIND — expected {date}, got {earlier_date}
+           Data is older than what should be available. Usually because
+           the cron ran before Upstox finalised the EOD candle (before
+           ~18:00 IST), or a fetch failed and stale JSON is still served.
+           Do NOT treat this as today's data.
 
     This is the authoritative answer to "is this today's close or not?".
     """
@@ -1064,6 +1385,8 @@ def detect_data_status(nifty_candles: list[list]) -> dict:
             "data_as_of": None,
             "data_as_of_label": "— unavailable —",
             "is_intraday_partial": False,
+            "is_stale": False,
+            "data_freshness": "no_data",
             "status_text": "✗ NO DATA",
         }
 
@@ -1078,13 +1401,15 @@ def detect_data_status(nifty_candles: list[list]) -> dict:
             "data_as_of": None,
             "data_as_of_label": "— unavailable —",
             "is_intraday_partial": False,
+            "is_stale": False,
+            "data_freshness": "no_data",
             "status_text": "✗ NO DATA",
         }
 
     today = now.date()
-    is_weekday = today.weekday() < 5                 # Mon–Fri
+    is_weekday = today.weekday() < 5
     current_minutes = now.hour * 60 + now.minute
-    market_close_minutes = 15 * 60 + 30              # 15:30 IST
+    market_close_minutes = 15 * 60 + 30  # 15:30 IST
 
     is_intraday_partial = (
         last_date == today
@@ -1092,18 +1417,31 @@ def detect_data_status(nifty_candles: list[list]) -> dict:
         and current_minutes < market_close_minutes
     )
 
+    expected = _expected_trading_day(now)
+    is_stale = (not is_intraday_partial) and (last_date < expected)
+
     data_as_of_label = last_date.strftime("%a %d %b %Y") + " close"
+
     if is_intraday_partial:
         status_text = "⚠ INTRADAY — today's candle not yet closed"
+        freshness = "intraday"
+    elif is_stale:
+        expected_label = expected.strftime("%a %d %b")
+        status_text = f"⚠ BEHIND — expected {expected_label}, using previous session"
+        freshness = "stale"
     elif last_date == today:
         status_text = "✓ EOD final (today's close)"
+        freshness = "fresh"
     else:
         status_text = "✓ EOD final"
+        freshness = "fresh"
 
     return {
         "data_as_of": last_date.strftime("%Y-%m-%d"),
         "data_as_of_label": data_as_of_label,
         "is_intraday_partial": is_intraday_partial,
+        "is_stale": is_stale,
+        "data_freshness": freshness,
         "status_text": status_text,
     }
 
@@ -1118,6 +1456,7 @@ def build_dashboard_json(
     regime_history: list[dict],
     breadth_history: list[dict],
     today_iso: str,
+    symbol_to_sector: dict | None = None,
 ) -> dict:
     now = datetime.now()
 
@@ -1162,7 +1501,7 @@ def build_dashboard_json(
     nifty_key = MARKET_SYMBOLS.get("NIFTY_50", {}).get("key", "")
     nifty_candles = raw_index_data.get(nifty_key, [])
 
-    # Data status: is this EOD final or intraday partial?
+    # Data status: is this EOD final, intraday partial, or stale?
     data_status = detect_data_status(nifty_candles)
 
     insight = compute_market_insight(
@@ -1170,14 +1509,24 @@ def build_dashboard_json(
     )
     insight_fallback = compute_insight_fallback(transition)
 
+    # Scan Here is now the single source of truth for sector guidance.
+    scan_here = compute_scan_here(sector_processed)
+
     playbook = compute_playbook(
-        market_regime["regime"], sector_processed, transition
+        market_regime["regime"], sector_processed, transition, scan_here
     )
-    # Today's Mode — lives inside the playbook block so the HTML can render it
-    # as the first thing inside the Playbook card.
+    # Today's Mode — the hero block inside the Playbook card.
     playbook["today_mode"] = compute_today_mode(transition)
 
-    scan_here = compute_scan_here(sector_processed)
+    # Watchlist — derived from per-stock metrics already fetched for breadth.
+    # Silently empty if symbol_to_sector or stock_metrics are unavailable.
+    stock_metrics = (breadth_data or {}).get("stock_metrics", {}) or {}
+    watchlist = compute_watchlist(
+        stock_metrics,
+        symbol_to_sector or {},
+        scan_here,
+        market_regime["regime"],
+    )
 
     # --- Enriched breadth block with 3d delta ---
     breadth_block = dict(breadth_data) if breadth_data else {
@@ -1185,6 +1534,9 @@ def build_dashboard_json(
         "errors": None, "total_constituents": None,
         "total_computed": None, "index_used": "unavailable",
     }
+    # Remove stock_metrics from the serialised JSON — it's only used for
+    # watchlist computation above, and adds ~500 rows of noise to the JSON.
+    breadth_block.pop("stock_metrics", None)
     if real_breadth is not None and len(breadth_history) >= 3:
         b3 = breadth_history[-3].get("breadth_pct")
         if b3 is not None:
@@ -1200,11 +1552,13 @@ def build_dashboard_json(
             "data_source": "Upstox API v2",
             "index_lookback_days": INDEX_LOOKBACK_DAYS,
             "breadth_lookback_days": BREADTH_LOOKBACK_DAYS,
-            "schema_version": "1.3",
+            "schema_version": "1.5",
             # Data status — what this JSON actually represents
             "data_as_of":          data_status["data_as_of"],
             "data_as_of_label":    data_status["data_as_of_label"],
             "is_intraday_partial": data_status["is_intraday_partial"],
+            "is_stale":            data_status.get("is_stale", False),
+            "data_freshness":      data_status.get("data_freshness", "fresh"),
             "data_status_text":    data_status["status_text"],
         },
         "market_pulse": {
@@ -1220,6 +1574,7 @@ def build_dashboard_json(
         "insight_fallback_text": insight_fallback,
         "playbook": playbook,
         "scan_here": scan_here,
+        "watchlist": watchlist,
         "sector_regimes": sector_processed,
         "modules": {
             "M1": {
@@ -1272,7 +1627,7 @@ def main():
     print("=" * 65)
 
     # -- Step 1: Authenticate --
-    print("\n[STEP 1/6] Authenticating with Upstox ...")
+    print("\n[STEP 1/7] Authenticating with Upstox ...")
     try:
         access_token = get_access_token()
     except Exception as e:
@@ -1281,7 +1636,7 @@ def main():
         sys.exit(1)
 
     # -- Step 2: Resolve instrument keys --
-    print("\n[STEP 2/6] Resolving instrument keys from Upstox ...")
+    print("\n[STEP 2/7] Resolving instrument keys from Upstox ...")
     resolve_instrument_keys()
 
     if "NIFTY_50" not in MARKET_SYMBOLS:
@@ -1289,7 +1644,7 @@ def main():
         sys.exit(1)
 
     # -- Step 3: Fetch index data --
-    print("\n[STEP 3/6] Fetching index historical data ...")
+    print("\n[STEP 3/7] Fetching index historical data ...")
     try:
         raw_index_data = fetch_all_index_data(access_token)
     except Exception as e:
@@ -1303,17 +1658,27 @@ def main():
         sys.exit(1)
 
     # -- Step 4: Fetch Nifty 500 constituents --
-    print("\n[STEP 4/6] Fetching Nifty 500 constituent list from NSE ...")
+    print("\n[STEP 4/7] Fetching Nifty 500 constituent list from NSE ...")
     try:
         constituents = fetch_nifty500_constituents()
     except Exception as e:
         print(f"  [BREADTH] Failed to get constituents: {e}")
         constituents = []
 
-    # -- Step 5: Compute breadth --
+    # -- Step 5: Fetch symbol → sector map (for watchlist) --
+    # This step can fail without affecting breadth or regime calculation —
+    # watchlist will just be empty until NSE is reachable again.
+    print("\n[STEP 5/7] Fetching symbol→sector mapping (for watchlist) ...")
+    try:
+        symbol_to_sector = fetch_symbol_to_sector_map()
+    except Exception as e:
+        print(f"  [WATCH] Failed to get sector map: {e}")
+        symbol_to_sector = {}
+
+    # -- Step 6: Compute breadth (also returns per-stock metrics for watchlist) --
     breadth_data = None
     if constituents:
-        print(f"\n[STEP 5/6] Computing market breadth ({len(constituents)} stocks) ...")
+        print(f"\n[STEP 6/7] Computing market breadth ({len(constituents)} stocks) ...")
         try:
             breadth_data = compute_market_breadth(constituents, access_token)
             pct = breadth_data["breadth_pct"]
@@ -1324,10 +1689,10 @@ def main():
             print(f"  [BREADTH] Breadth computation failed: {e}")
             traceback.print_exc()
     else:
-        print("\n[STEP 5/6] Skipping breadth (no constituent list) — will use sector proxy")
+        print("\n[STEP 6/7] Skipping breadth (no constituent list) — will use sector proxy")
 
-    # -- Step 6: Decision layer + JSON output --
-    print("\n[STEP 6/6] Building decision layer and writing JSON ...")
+    # -- Step 7: Decision layer + JSON output --
+    print("\n[STEP 7/7] Building decision layer and writing JSON ...")
 
     output_path         = os.environ.get("OUTPUT_PATH",          "dashboard_data.json")
     regime_history_path = os.environ.get("REGIME_HISTORY_PATH",  "regime_history.json")
@@ -1342,6 +1707,7 @@ def main():
     dashboard = build_dashboard_json(
         raw_index_data, breadth_data,
         regime_history, breadth_history, today_iso,
+        symbol_to_sector=symbol_to_sector,
     )
 
     with open(output_path, "w") as f:
@@ -1393,13 +1759,34 @@ def main():
     print(f"  Playbook RUN:   {modules}")
     if pb['override']:
         print(f"  OVERRIDE:       {pb['override']}")
-    print(f"  Focus sectors:  {', '.join(pb['focus_sectors']) or '—'}")
-    print(f"  Avoid sectors:  {', '.join(pb['avoid_sectors']) or '—'}")
     print(f"")
     print(f"  Scan Here:")
     print(f"    READY       {_fmt_scan(sh['ready'])}")
-    print(f"    EXTENDED    {_fmt_scan(sh['extended'])}    (wait for pullback)")
+    print(f"    EXTENDED    {_fmt_scan(sh['extended'])}    (NO ENTRY — pullback required)")
     print(f"    WEAK        {_fmt_scan(sh['weak'])}        (M2 only)")
+
+    wl = dashboard.get("watchlist", {})
+    if wl and wl.get("total_ranked", 0) > 0:
+        print(f"")
+        print(f"  Watchlist ({wl['total_ranked']} names):")
+        if wl.get("m1"):
+            print(f"    M1 · Near 20 EMA")
+            for s in wl["m1"]:
+                print(f"      {s['sector']:14s} {s['symbol']:12s} {s['metric_value']}")
+        if wl.get("m3"):
+            print(f"    M3 · Tightest range")
+            for s in wl["m3"]:
+                print(f"      {s['sector']:14s} {s['symbol']:12s} {s['metric_value']}")
+        if wl.get("m2"):
+            print(f"    M2 · Oversold (RSI)")
+            for s in wl["m2"]:
+                print(f"      {s['sector']:14s} {s['symbol']:12s} RSI {s['metric_value']}")
+        elif not wl.get("m2_active"):
+            print(f"    M2 · Oversold — inactive in {regime} regime")
+    elif wl.get("universe_note"):
+        print(f"")
+        print(f"  Watchlist:       {wl['universe_note']}")
+
     if dashboard['market_insight']:
         print(f"")
         print(f"  Insight:")
