@@ -1,14 +1,14 @@
 {
   "meta": {
-    "generated_at": "2026-04-28T11:48:21.061429",
-    "generated_date": "2026-04-28",
-    "generated_time": "11:48 IST",
+    "generated_at": "2026-04-29T11:40:10.626640",
+    "generated_date": "2026-04-29",
+    "generated_time": "11:40 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
     "schema_version": "1.5",
-    "data_as_of": "2026-04-27",
-    "data_as_of_label": "Mon 27 Apr 2026 close",
+    "data_as_of": "2026-04-28",
+    "data_as_of_label": "Tue 28 Apr 2026 close",
     "is_intraday_partial": false,
     "is_stale": false,
     "data_freshness": "fresh",
@@ -16,13 +16,13 @@
   },
   "market_pulse": {
     "nifty": {
-      "current_close": 24092.7,
-      "prev_close": 23897.95,
-      "change_pct": 0.81,
-      "ema_20": 23951.71,
-      "ema_50": 24204.51,
-      "ema_200": 24830.39,
-      "atr_14": 380.62,
+      "current_close": 23995.7,
+      "prev_close": 24092.7,
+      "change_pct": -0.4,
+      "ema_20": 23955.9,
+      "ema_50": 24196.32,
+      "ema_200": 24823.42,
+      "atr_14": 369.49,
       "high_52w": 26373.2,
       "low_52w": 22182.55,
       "candle_count": 248,
@@ -30,13 +30,13 @@
       "instrument_key": "NSE_INDEX|Nifty 50"
     },
     "bank_nifty": {
-      "current_close": 56264.3,
-      "prev_close": 56089.75,
-      "change_pct": 0.31,
-      "ema_20": 55675.87,
-      "ema_50": 56299.27,
-      "ema_200": 56770.33,
-      "atr_14": 1108.72,
+      "current_close": 55400.35,
+      "prev_close": 56264.3,
+      "change_pct": -1.54,
+      "ema_20": 55649.63,
+      "ema_50": 56264.02,
+      "ema_200": 56750.44,
+      "atr_14": 1100.99,
       "high_52w": 61764.85,
       "low_52w": 49954.85,
       "candle_count": 248,
@@ -44,13 +44,13 @@
       "instrument_key": "NSE_INDEX|Nifty Bank"
     },
     "midcap": {
-      "current_close": 16996.2,
-      "prev_close": 16741.75,
-      "change_pct": 1.52,
-      "ema_20": 16503.91,
-      "ema_50": 16409.57,
-      "ema_200": 16470.86,
-      "atr_14": 315.54,
+      "current_close": 17039.85,
+      "prev_close": 16996.2,
+      "change_pct": 0.26,
+      "ema_20": 16554.95,
+      "ema_50": 16434.29,
+      "ema_200": 16478.11,
+      "atr_14": 301.0,
       "high_52w": 17572.45,
       "low_52w": 14783.9,
       "candle_count": 248,
@@ -58,13 +58,13 @@
       "instrument_key": "NSE_INDEX|Nifty Midcap 50"
     },
     "vix": {
-      "current_close": 18.38,
-      "prev_close": 19.71,
-      "change_pct": -6.75,
-      "ema_20": 19.87,
-      "ema_50": 18.86,
-      "ema_200": 15.19,
-      "atr_14": 2.25,
+      "current_close": 18.05,
+      "prev_close": 18.38,
+      "change_pct": -1.8,
+      "ema_20": 19.7,
+      "ema_50": 18.83,
+      "ema_200": 15.22,
+      "atr_14": 2.17,
       "high_52w": 28.91,
       "low_52w": 8.72,
       "candle_count": 248,
@@ -77,17 +77,11 @@
     "active_modules": [
       "M3"
     ],
-    "description": "Mixed signals. Breadth 84% (Nifty 500)",
+    "description": "Mixed signals. Breadth 81% (Nifty 500)",
     "colour": "yellow"
   },
   "regime_transition": {
     "history": [
-      {
-        "date": "2026-04-22",
-        "regime": "Bullish Trending",
-        "label": "BULL",
-        "colour": "bull"
-      },
       {
         "date": "2026-04-23",
         "regime": "Bullish Trending",
@@ -111,31 +105,31 @@
         "regime": "Sideways",
         "label": "SIDE",
         "colour": "side"
+      },
+      {
+        "date": "2026-04-29",
+        "regime": "Sideways",
+        "label": "SIDE",
+        "colour": "side"
       }
     ],
     "status": "CHOPPY",
-    "days_in_regime": 1,
+    "days_in_regime": 2,
     "direction": "choppy",
     "note": "3+ flips in 5 days — stand aside today"
   },
   "breadth": {
-    "breadth_pct": 84.4,
-    "above_ema": 422,
-    "below_ema": 78,
+    "breadth_pct": 81.4,
+    "above_ema": 407,
+    "below_ema": 93,
     "errors": 0,
     "total_constituents": 500,
     "total_computed": 500,
     "index_used": "NIFTY 500",
-    "breadth_3d_ago": 90.4,
-    "change_3d": -6.0
+    "breadth_3d_ago": 85.8,
+    "change_3d": -4.4
   },
-  "market_insight": [
-    {
-      "severity": "high",
-      "trigger": "nifty_reclaim_20ema",
-      "text": "Nifty reclaimed 20 EMA after 1 day below — M1 re-activated"
-    }
-  ],
+  "market_insight": [],
   "insight_fallback_text": "Regime flipping — no stable state in last 5 sessions.",
   "playbook": {
     "run": [],
@@ -162,24 +156,8 @@
   "scan_here": {
     "ready": [
       {
-        "sector": "FIN_SERVICES",
-        "distance_pct": 0.62
-      },
-      {
-        "sector": "AUTO",
-        "distance_pct": 0.67
-      },
-      {
-        "sector": "BANK",
-        "distance_pct": 1.06
-      },
-      {
-        "sector": "OIL_GAS",
-        "distance_pct": 1.99
-      },
-      {
         "sector": "PHARMA",
-        "distance_pct": 3.0
+        "distance_pct": 2.65
       }
     ],
     "extended": [
@@ -189,21 +167,37 @@
       },
       {
         "sector": "REALTY",
-        "distance_pct": 4.77
+        "distance_pct": 3.91
       },
       {
         "sector": "CONSUMER_DURABLES",
-        "distance_pct": 3.71
+        "distance_pct": 3.35
+      },
+      {
+        "sector": "OIL_GAS",
+        "distance_pct": 3.22
       },
       {
         "sector": "FMCG",
-        "distance_pct": 3.68
+        "distance_pct": 3.02
       }
     ],
     "weak": [
       {
         "sector": "IT",
-        "distance_pct": -4.38
+        "distance_pct": -4.58
+      },
+      {
+        "sector": "BANK",
+        "distance_pct": -0.45
+      },
+      {
+        "sector": "AUTO",
+        "distance_pct": -0.31
+      },
+      {
+        "sector": "FIN_SERVICES",
+        "distance_pct": -0.23
       }
     ],
     "ready_threshold_pct": 3.0
@@ -211,76 +205,76 @@
   "watchlist": {
     "m1": [
       {
-        "symbol": "LUPIN",
+        "symbol": "TORNTPHARM",
         "sector": "PHARMA",
-        "close": 2324.5,
+        "close": 4182.9,
         "metric_label": "dist from 20EMA",
-        "metric_value": "+0.3%"
-      },
-      {
-        "symbol": "MARUTI",
-        "sector": "AUTO",
-        "close": 13222.0,
-        "metric_label": "dist from 20EMA",
-        "metric_value": "+0.4%"
+        "metric_value": "+0.1%"
       },
       {
         "symbol": "BIOCON",
         "sector": "PHARMA",
-        "close": 362.0,
-        "metric_label": "dist from 20EMA",
-        "metric_value": "+0.4%"
-      },
-      {
-        "symbol": "AXISBANK",
-        "sector": "BANK",
-        "close": 1324.2,
-        "metric_label": "dist from 20EMA",
-        "metric_value": "+0.5%"
-      },
-      {
-        "symbol": "RELIANCE",
-        "sector": "OIL_GAS",
-        "close": 1365.8,
+        "close": 362.8,
         "metric_label": "dist from 20EMA",
         "metric_value": "+0.6%"
+      },
+      {
+        "symbol": "LAURUSLABS",
+        "sector": "PHARMA",
+        "close": 1090.45,
+        "metric_label": "dist from 20EMA",
+        "metric_value": "+0.6%"
+      },
+      {
+        "symbol": "JBCHEPHARM",
+        "sector": "PHARMA",
+        "close": 2043.6,
+        "metric_label": "dist from 20EMA",
+        "metric_value": "+1.0%"
+      },
+      {
+        "symbol": "GLAND",
+        "sector": "PHARMA",
+        "close": 1760.8,
+        "metric_label": "dist from 20EMA",
+        "metric_value": "+1.3%"
       }
     ],
     "m3": [
       {
-        "symbol": "CASTROLIND",
-        "sector": "OIL_GAS",
-        "close": 184.51,
-        "metric_label": "20d range",
-        "metric_value": "7.2%"
-      },
-      {
         "symbol": "ABBOTINDIA",
         "sector": "PHARMA",
-        "close": 25425.0,
+        "close": 25345.0,
         "metric_label": "20d range",
-        "metric_value": "7.8%"
-      },
-      {
-        "symbol": "OIL",
-        "sector": "OIL_GAS",
-        "close": 476.2,
-        "metric_label": "20d range",
-        "metric_value": "7.9%"
+        "metric_value": "5.6%"
       },
       {
         "symbol": "AJANTPHARM",
         "sector": "PHARMA",
-        "close": 2807.2,
+        "close": 2756.0,
         "metric_label": "20d range",
-        "metric_value": "9.7%"
+        "metric_value": "8.8%"
       },
       {
         "symbol": "LUPIN",
         "sector": "PHARMA",
-        "close": 2324.5,
+        "close": 2302.7,
         "metric_label": "20d range",
         "metric_value": "9.7%"
+      },
+      {
+        "symbol": "GLAND",
+        "sector": "PHARMA",
+        "close": 1760.8,
+        "metric_label": "20d range",
+        "metric_value": "10.9%"
+      },
+      {
+        "symbol": "JBCHEPHARM",
+        "sector": "PHARMA",
+        "close": 2043.6,
+        "metric_label": "20d range",
+        "metric_value": "11.1%"
       }
     ],
     "m2": [],
@@ -290,13 +284,13 @@
   },
   "sector_regimes": {
     "BANK": {
-      "current_close": 56264.3,
-      "prev_close": 56089.75,
-      "change_pct": 0.31,
-      "ema_20": 55675.87,
-      "ema_50": 56299.27,
-      "ema_200": 56770.33,
-      "atr_14": 1108.72,
+      "current_close": 55400.35,
+      "prev_close": 56264.3,
+      "change_pct": -1.54,
+      "ema_20": 55649.63,
+      "ema_50": 56264.02,
+      "ema_200": 56750.44,
+      "atr_14": 1100.99,
       "high_52w": 61764.85,
       "low_52w": 49954.85,
       "candle_count": 248,
@@ -307,13 +301,13 @@
       "regime_colour": "side"
     },
     "IT": {
-      "current_close": 29159.15,
-      "prev_close": 28530.6,
-      "change_pct": 2.2,
-      "ema_20": 30494.62,
-      "ema_50": 31480.03,
-      "ema_200": 34431.79,
-      "atr_14": 825.62,
+      "current_close": 28959.9,
+      "prev_close": 29159.15,
+      "change_pct": -0.68,
+      "ema_20": 30348.46,
+      "ema_50": 31381.21,
+      "ema_200": 34392.78,
+      "atr_14": 793.72,
       "high_52w": 40301.4,
       "low_52w": 28288.05,
       "candle_count": 248,
@@ -324,13 +318,13 @@
       "regime_colour": "correct"
     },
     "FIN_SERVICES": {
-      "current_close": 26164.65,
-      "prev_close": 26141.75,
-      "change_pct": 0.09,
-      "ema_20": 26003.87,
-      "ema_50": 26233.27,
-      "ema_200": 26644.3,
-      "atr_14": 499.45,
+      "current_close": 25937.5,
+      "prev_close": 26164.65,
+      "change_pct": -0.87,
+      "ema_20": 25997.55,
+      "ema_50": 26221.67,
+      "ema_200": 26634.58,
+      "atr_14": 490.08,
       "high_52w": 28562.5,
       "low_52w": 23373.95,
       "candle_count": 248,
@@ -341,15 +335,15 @@
       "regime_colour": "side"
     },
     "AUTO": {
-      "current_close": 26053.15,
-      "prev_close": 25652.85,
-      "change_pct": 1.56,
-      "ema_20": 25880.34,
-      "ema_50": 26141.26,
-      "ema_200": 25888.55,
-      "atr_14": 612.08,
+      "current_close": 25790.35,
+      "prev_close": 26053.15,
+      "change_pct": -1.01,
+      "ema_20": 25871.77,
+      "ema_50": 26127.5,
+      "ema_200": 25889.56,
+      "atr_14": 601.02,
       "high_52w": 29179.1,
-      "low_52w": 21919.95,
+      "low_52w": 22091.15,
       "candle_count": 248,
       "label": "Nifty Auto",
       "instrument_key": "NSE_INDEX|Nifty Auto",
@@ -358,13 +352,13 @@
       "regime_colour": "side"
     },
     "FMCG": {
-      "current_close": 51046.5,
-      "prev_close": 50766.25,
-      "change_pct": 0.55,
-      "ema_20": 49233.77,
-      "ema_50": 49513.55,
-      "ema_200": 52815.86,
-      "atr_14": 846.53,
+      "current_close": 50882.75,
+      "prev_close": 51046.5,
+      "change_pct": -0.32,
+      "ema_20": 49390.82,
+      "ema_50": 49567.24,
+      "ema_200": 52801.71,
+      "atr_14": 812.13,
       "high_52w": 58485.05,
       "low_52w": 45334.15,
       "candle_count": 248,
@@ -375,14 +369,14 @@
       "regime_colour": "side"
     },
     "METAL": {
-      "current_close": 12980.85,
-      "prev_close": 12746.65,
-      "change_pct": 1.84,
-      "ema_20": 12389.24,
-      "ema_50": 12003.97,
-      "ema_200": 10778.22,
-      "atr_14": 262.51,
-      "high_52w": 13033.25,
+      "current_close": 13046.45,
+      "prev_close": 12980.85,
+      "change_pct": 0.51,
+      "ema_20": 12451.83,
+      "ema_50": 12044.85,
+      "ema_200": 10798.02,
+      "atr_14": 257.02,
+      "high_52w": 13164.3,
       "low_52w": 8256.2,
       "candle_count": 248,
       "label": "Nifty Metal",
@@ -392,13 +386,13 @@
       "regime_colour": "side"
     },
     "PHARMA": {
-      "current_close": 23171.85,
-      "prev_close": 22580.1,
-      "change_pct": 2.62,
-      "ema_20": 22497.35,
-      "ema_50": 22465.85,
-      "ema_200": 22299.3,
-      "atr_14": 405.61,
+      "current_close": 23158.15,
+      "prev_close": 23171.85,
+      "change_pct": -0.06,
+      "ema_20": 22560.28,
+      "ema_50": 22493.0,
+      "ema_200": 22307.9,
+      "atr_14": 390.71,
       "high_52w": 23540.9,
       "low_52w": 20576.05,
       "candle_count": 248,
@@ -409,13 +403,13 @@
       "regime_colour": "side"
     },
     "REALTY": {
-      "current_close": 797.15,
-      "prev_close": 778.0,
-      "change_pct": 2.46,
-      "ema_20": 760.83,
-      "ema_50": 764.02,
-      "ema_200": 849.73,
-      "atr_14": 22.23,
+      "current_close": 793.85,
+      "prev_close": 797.15,
+      "change_pct": -0.41,
+      "ema_20": 763.97,
+      "ema_50": 765.19,
+      "ema_200": 849.56,
+      "atr_14": 21.4,
       "high_52w": 1049.7,
       "low_52w": 638.65,
       "candle_count": 248,
@@ -426,13 +420,13 @@
       "regime_colour": "side"
     },
     "OIL_GAS": {
-      "current_close": 11508.35,
-      "prev_close": 11331.7,
-      "change_pct": 1.56,
-      "ema_20": 11284.26,
-      "ema_50": 11399.84,
-      "ema_200": 11523.16,
-      "atr_14": 200.41,
+      "current_close": 11686.75,
+      "prev_close": 11508.35,
+      "change_pct": 1.55,
+      "ema_20": 11322.59,
+      "ema_50": 11411.09,
+      "ema_200": 11524.32,
+      "atr_14": 203.97,
       "high_52w": 12445.7,
       "low_52w": 10580.95,
       "candle_count": 248,
@@ -443,13 +437,13 @@
       "regime_colour": "side"
     },
     "CONSUMER_DURABLES": {
-      "current_close": 38019.65,
-      "prev_close": 37082.2,
-      "change_pct": 2.53,
-      "ema_20": 36659.08,
-      "ema_50": 36286.04,
-      "ema_200": 37168.4,
-      "atr_14": 867.48,
+      "current_close": 38020.95,
+      "prev_close": 38019.65,
+      "change_pct": 0.0,
+      "ema_20": 36788.78,
+      "ema_50": 36354.08,
+      "ema_200": 37177.48,
+      "atr_14": 831.3,
       "high_52w": 40472.45,
       "low_52w": 32587.95,
       "candle_count": 248,
