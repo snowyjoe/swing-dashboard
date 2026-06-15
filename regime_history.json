@@ -1,9 +1,5 @@
 [
   {
-    "date": "2026-05-14",
-    "regime": "Correcting"
-  },
-  {
     "date": "2026-05-15",
     "regime": "Correcting"
   },
@@ -78,5 +74,9 @@
   {
     "date": "2026-06-12",
     "regime": "Correcting"
+  },
+  {
+    "date": "2026-06-15",
+    "regime": "Sideways"
   }
 ]
