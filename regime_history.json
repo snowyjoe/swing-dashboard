@@ -1,9 +1,5 @@
 [
   {
-    "date": "2026-06-09",
-    "regime": "Correcting"
-  },
-  {
     "date": "2026-06-10",
     "regime": "Correcting"
   },
@@ -77,6 +73,10 @@
   },
   {
     "date": "2026-07-06",
+    "regime": "Bullish Trending"
+  },
+  {
+    "date": "2026-07-07",
     "regime": "Bullish Trending"
   }
 ]
