@@ -1,9 +1,5 @@
 [
   {
-    "date": "2026-06-17",
-    "regime": "Bullish Trending"
-  },
-  {
     "date": "2026-06-18",
     "regime": "Bullish Trending"
   },
@@ -77,6 +73,10 @@
   },
   {
     "date": "2026-07-15",
+    "regime": "Sideways"
+  },
+  {
+    "date": "2026-07-16",
     "regime": "Sideways"
   }
 ]
