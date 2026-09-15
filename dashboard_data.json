@@ -1,8 +1,8 @@
 {
   "meta": {
-    "generated_at": "2026-09-14T16:12:36.560860",
-    "generated_date": "2026-09-14",
-    "generated_time": "16:12 IST",
+    "generated_at": "2026-09-15T14:41:06.940624",
+    "generated_date": "2026-09-15",
+    "generated_time": "14:41 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
@@ -83,12 +83,6 @@
   "regime_transition": {
     "history": [
       {
-        "date": "2026-09-08",
-        "regime": "Correcting",
-        "label": "CORR",
-        "colour": "correct"
-      },
-      {
         "date": "2026-09-09",
         "regime": "Correcting",
         "label": "CORR",
@@ -108,6 +102,12 @@
       },
       {
         "date": "2026-09-14",
+        "regime": "Correcting",
+        "label": "CORR",
+        "colour": "correct"
+      },
+      {
+        "date": "2026-09-15",
         "regime": "Correcting",
         "label": "CORR",
         "colour": "correct"
