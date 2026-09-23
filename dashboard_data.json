@@ -1,14 +1,14 @@
 {
   "meta": {
-    "generated_at": "2026-09-22T14:25:34.048579",
-    "generated_date": "2026-09-22",
-    "generated_time": "14:25 IST",
+    "generated_at": "2026-09-23T14:45:33.574930",
+    "generated_date": "2026-09-23",
+    "generated_time": "14:45 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
     "schema_version": "1.5",
-    "data_as_of": "2026-09-21",
-    "data_as_of_label": "Mon 21 Sep 2026 close",
+    "data_as_of": "2026-09-22",
+    "data_as_of_label": "Tue 22 Sep 2026 close",
     "is_intraday_partial": false,
     "is_stale": false,
     "data_freshness": "fresh",
@@ -16,13 +16,13 @@
   },
   "market_pulse": {
     "nifty": {
-      "current_close": 23414.3,
-      "prev_close": 23346.4,
-      "change_pct": 0.29,
-      "ema_20": 23657.79,
-      "ema_50": 23901.58,
-      "ema_200": 24525.17,
-      "atr_14": 186.43,
+      "current_close": 23329.0,
+      "prev_close": 23414.3,
+      "change_pct": -0.36,
+      "ema_20": 23626.48,
+      "ema_50": 23879.13,
+      "ema_200": 24514.42,
+      "atr_14": 187.63,
       "high_52w": 26373.2,
       "low_52w": 22182.55,
       "candle_count": 247,
@@ -30,13 +30,13 @@
       "instrument_key": "NSE_INDEX|Nifty 50"
     },
     "bank_nifty": {
-      "current_close": 56470.65,
-      "prev_close": 56358.7,
-      "change_pct": 0.2,
-      "ema_20": 56789.89,
-      "ema_50": 57014.67,
-      "ema_200": 57291.2,
-      "atr_14": 561.64,
+      "current_close": 56215.55,
+      "prev_close": 56470.65,
+      "change_pct": -0.45,
+      "ema_20": 56735.19,
+      "ema_50": 56983.33,
+      "ema_200": 57286.05,
+      "atr_14": 561.81,
       "high_52w": 61764.85,
       "low_52w": 49954.85,
       "candle_count": 247,
@@ -44,13 +44,13 @@
       "instrument_key": "NSE_INDEX|Nifty Bank"
     },
     "midcap": {
-      "current_close": 17879.65,
-      "prev_close": 17882.9,
-      "change_pct": -0.02,
-      "ema_20": 17986.6,
-      "ema_50": 17987.14,
-      "ema_200": 17378.56,
-      "atr_14": 186.79,
+      "current_close": 17878.6,
+      "prev_close": 17879.65,
+      "change_pct": -0.01,
+      "ema_20": 17976.31,
+      "ema_50": 17982.88,
+      "ema_200": 17381.64,
+      "atr_14": 183.21,
       "high_52w": 18500.95,
       "low_52w": 14804.55,
       "candle_count": 247,
@@ -58,13 +58,13 @@
       "instrument_key": "NSE_INDEX|Nifty Midcap 50"
     },
     "vix": {
-      "current_close": 11.25,
-      "prev_close": 11.39,
-      "change_pct": -1.23,
-      "ema_20": 11.77,
-      "ema_50": 12.23,
-      "ema_200": 13.45,
-      "atr_14": 1.17,
+      "current_close": 11.0,
+      "prev_close": 11.25,
+      "change_pct": -2.22,
+      "ema_20": 11.7,
+      "ema_50": 12.18,
+      "ema_200": 13.46,
+      "atr_14": 1.14,
       "high_52w": 28.91,
       "low_52w": 8.72,
       "candle_count": 247,
@@ -82,12 +82,6 @@
   },
   "regime_transition": {
     "history": [
-      {
-        "date": "2026-09-16",
-        "regime": "Correcting",
-        "label": "CORR",
-        "colour": "correct"
-      },
       {
         "date": "2026-09-17",
         "regime": "Correcting",
@@ -108,6 +102,12 @@
       },
       {
         "date": "2026-09-22",
+        "regime": "Correcting",
+        "label": "CORR",
+        "colour": "correct"
+      },
+      {
+        "date": "2026-09-23",
         "regime": "Correcting",
         "label": "CORR",
         "colour": "correct"
@@ -167,46 +167,46 @@
     "ready": [
       {
         "sector": "PHARMA",
-        "distance_pct": 1.59
+        "distance_pct": 1.06
       }
     ],
     "extended": [],
     "weak": [
       {
         "sector": "IT",
-        "distance_pct": -3.07
-      },
-      {
-        "sector": "AUTO",
-        "distance_pct": -2.12
+        "distance_pct": -3.55
       },
       {
         "sector": "CONSUMER_DURABLES",
-        "distance_pct": -2.1
+        "distance_pct": -2.47
       },
       {
-        "sector": "REALTY",
-        "distance_pct": -1.82
+        "sector": "AUTO",
+        "distance_pct": -2.14
       },
       {
         "sector": "FIN_SERVICES",
-        "distance_pct": -0.78
-      },
-      {
-        "sector": "METAL",
-        "distance_pct": -0.72
+        "distance_pct": -1.08
       },
       {
         "sector": "BANK",
-        "distance_pct": -0.56
+        "distance_pct": -0.92
       },
       {
         "sector": "FMCG",
-        "distance_pct": -0.47
+        "distance_pct": -0.9
+      },
+      {
+        "sector": "REALTY",
+        "distance_pct": -0.85
       },
       {
         "sector": "OIL_GAS",
-        "distance_pct": -0.24
+        "distance_pct": -0.6
+      },
+      {
+        "sector": "METAL",
+        "distance_pct": -0.53
       }
     ],
     "ready_threshold_pct": 3.0
@@ -221,13 +221,13 @@
   },
   "sector_regimes": {
     "BANK": {
-      "current_close": 56470.65,
-      "prev_close": 56358.7,
-      "change_pct": 0.2,
-      "ema_20": 56789.89,
-      "ema_50": 57014.67,
-      "ema_200": 57291.2,
-      "atr_14": 561.64,
+      "current_close": 56215.55,
+      "prev_close": 56470.65,
+      "change_pct": -0.45,
+      "ema_20": 56735.19,
+      "ema_50": 56983.33,
+      "ema_200": 57286.05,
+      "atr_14": 561.81,
       "high_52w": 61764.85,
       "low_52w": 49954.85,
       "candle_count": 247,
@@ -238,13 +238,13 @@
       "regime_colour": "side"
     },
     "IT": {
-      "current_close": 28830.9,
-      "prev_close": 28854.55,
-      "change_pct": -0.08,
-      "ema_20": 29744.22,
-      "ema_50": 29882.87,
-      "ema_200": 32018.47,
-      "atr_14": 667.42,
+      "current_close": 28582.1,
+      "prev_close": 28830.9,
+      "change_pct": -0.86,
+      "ema_20": 29633.54,
+      "ema_50": 29831.86,
+      "ema_200": 31990.18,
+      "atr_14": 655.37,
       "high_52w": 40301.4,
       "low_52w": 25699.1,
       "candle_count": 247,
@@ -255,13 +255,13 @@
       "regime_colour": "correct"
     },
     "FIN_SERVICES": {
-      "current_close": 25524.7,
-      "prev_close": 25510.0,
-      "change_pct": 0.06,
-      "ema_20": 25724.6,
-      "ema_50": 25999.16,
-      "ema_200": 26492.25,
-      "atr_14": 274.86,
+      "current_close": 25417.95,
+      "prev_close": 25524.7,
+      "change_pct": -0.42,
+      "ema_20": 25695.4,
+      "ema_50": 25976.38,
+      "ema_200": 26482.7,
+      "atr_14": 273.88,
       "high_52w": 28562.5,
       "low_52w": 23373.95,
       "candle_count": 247,
@@ -272,13 +272,13 @@
       "regime_colour": "side"
     },
     "AUTO": {
-      "current_close": 27151.1,
-      "prev_close": 27129.0,
-      "change_pct": 0.08,
-      "ema_20": 27740.49,
-      "ema_50": 27881.79,
-      "ema_200": 27373.98,
-      "atr_14": 369.78,
+      "current_close": 27086.3,
+      "prev_close": 27151.1,
+      "change_pct": -0.24,
+      "ema_20": 27678.19,
+      "ema_50": 27850.58,
+      "ema_200": 27370.39,
+      "atr_14": 363.61,
       "high_52w": 29865.5,
       "low_52w": 23560.1,
       "candle_count": 247,
@@ -289,13 +289,13 @@
       "regime_colour": "correct"
     },
     "FMCG": {
-      "current_close": 45900.9,
-      "prev_close": 45466.8,
-      "change_pct": 0.95,
-      "ema_20": 46116.99,
-      "ema_50": 47290.11,
-      "ema_200": 50230.24,
-      "atr_14": 529.6,
+      "current_close": 45657.75,
+      "prev_close": 45900.9,
+      "change_pct": -0.53,
+      "ema_20": 46073.25,
+      "ema_50": 47226.1,
+      "ema_200": 50182.54,
+      "atr_14": 523.72,
       "high_52w": 57445.2,
       "low_52w": 44825.6,
       "candle_count": 247,
@@ -306,13 +306,13 @@
       "regime_colour": "side"
     },
     "METAL": {
-      "current_close": 12972.7,
-      "prev_close": 13052.6,
-      "change_pct": -0.61,
-      "ema_20": 13066.13,
-      "ema_50": 13011.85,
-      "ema_200": 12159.3,
-      "atr_14": 219.12,
+      "current_close": 12990.35,
+      "prev_close": 12972.7,
+      "change_pct": 0.14,
+      "ema_20": 13058.91,
+      "ema_50": 13011.01,
+      "ema_200": 12170.0,
+      "atr_14": 211.36,
       "high_52w": 13931.35,
       "low_52w": 9871.8,
       "candle_count": 247,
@@ -323,13 +323,13 @@
       "regime_colour": "side"
     },
     "PHARMA": {
-      "current_close": 27021.15,
-      "prev_close": 26710.1,
-      "change_pct": 1.16,
-      "ema_20": 26598.34,
-      "ema_50": 26259.89,
-      "ema_200": 24312.71,
-      "atr_14": 336.92,
+      "current_close": 26909.6,
+      "prev_close": 27021.15,
+      "change_pct": -0.41,
+      "ema_20": 26627.98,
+      "ema_50": 26285.37,
+      "ema_200": 24331.26,
+      "atr_14": 330.57,
       "high_52w": 27188.45,
       "low_52w": 21149.9,
       "candle_count": 247,
@@ -340,13 +340,13 @@
       "regime_colour": "side"
     },
     "REALTY": {
-      "current_close": 853.85,
-      "prev_close": 844.2,
-      "change_pct": 1.14,
-      "ema_20": 869.67,
-      "ema_50": 875.34,
-      "ema_200": 854.74,
-      "atr_14": 19.53,
+      "current_close": 861.5,
+      "prev_close": 853.85,
+      "change_pct": 0.9,
+      "ema_20": 868.89,
+      "ema_50": 874.81,
+      "ema_200": 854.26,
+      "atr_14": 18.94,
       "high_52w": 974.5,
       "low_52w": 638.65,
       "candle_count": 247,
@@ -357,13 +357,13 @@
       "regime_colour": "side"
     },
     "OIL_GAS": {
-      "current_close": 11006.25,
-      "prev_close": 10948.7,
-      "change_pct": 0.53,
-      "ema_20": 11032.22,
-      "ema_50": 11116.08,
-      "ema_200": 11414.51,
-      "atr_14": 118.88,
+      "current_close": 10958.9,
+      "prev_close": 11006.25,
+      "change_pct": -0.43,
+      "ema_20": 11025.24,
+      "ema_50": 11109.92,
+      "ema_200": 11411.99,
+      "atr_14": 120.92,
       "high_52w": 12445.7,
       "low_52w": 10580.95,
       "candle_count": 247,
@@ -374,13 +374,13 @@
       "regime_colour": "side"
     },
     "CONSUMER_DURABLES": {
-      "current_close": 38207.3,
-      "prev_close": 37848.25,
-      "change_pct": 0.95,
-      "ema_20": 39025.05,
-      "ema_50": 39059.44,
-      "ema_200": 37873.89,
-      "atr_14": 506.65,
+      "current_close": 37962.2,
+      "prev_close": 38207.3,
+      "change_pct": -0.64,
+      "ema_20": 38923.83,
+      "ema_50": 39016.41,
+      "ema_200": 37859.11,
+      "atr_14": 500.19,
       "high_52w": 40964.55,
       "low_52w": 32587.95,
       "candle_count": 247,
