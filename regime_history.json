@@ -1,9 +1,5 @@
 [
   {
-    "date": "2026-09-08",
-    "regime": "Correcting"
-  },
-  {
     "date": "2026-09-09",
     "regime": "Correcting"
   },
@@ -77,6 +73,10 @@
   },
   {
     "date": "2026-10-06",
+    "regime": "Correcting"
+  },
+  {
+    "date": "2026-10-07",
     "regime": "Correcting"
   }
 ]
