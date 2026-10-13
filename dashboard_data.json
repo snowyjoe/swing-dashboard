@@ -1,31 +1,31 @@
 {
   "meta": {
-    "generated_at": "2026-10-12T19:40:09.005689",
-    "generated_date": "2026-10-12",
-    "generated_time": "19:40 IST",
+    "generated_at": "2026-10-13T17:24:38.067042",
+    "generated_date": "2026-10-13",
+    "generated_time": "17:24 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
     "schema_version": "1.5",
-    "data_as_of": "2026-10-09",
-    "data_as_of_label": "Fri 09 Oct 2026 close",
+    "data_as_of": "2026-10-12",
+    "data_as_of_label": "Mon 12 Oct 2026 close",
     "is_intraday_partial": false,
     "is_stale": true,
     "data_freshness": "stale",
-    "data_status_text": "⚠ BEHIND — expected Mon 12 Oct, using previous session"
+    "data_status_text": "⚠ BEHIND — expected Tue 13 Oct, using previous session"
   },
   "market_pulse": {
     "nifty": {
-      "current_close": 22520.45,
-      "prev_close": 22231.8,
-      "change_pct": 1.3,
-      "ema_20": 22947.32,
-      "ema_50": 23431.09,
-      "ema_200": 24328.68,
-      "atr_14": 245.55,
+      "current_close": 22363.35,
+      "prev_close": 22520.45,
+      "change_pct": -0.7,
+      "ema_20": 22891.7,
+      "ema_50": 23389.22,
+      "ema_200": 24309.12,
+      "atr_14": 252.78,
       "high_52w": 26373.2,
       "low_52w": 22179.9,
-      "candle_count": 246,
+      "candle_count": 247,
       "label": "Nifty 50",
       "instrument_key": "NSE_INDEX|Nifty 50"
     },
@@ -83,12 +83,6 @@
   "regime_transition": {
     "history": [
       {
-        "date": "2026-10-06",
-        "regime": "Correcting",
-        "label": "CORR",
-        "colour": "correct"
-      },
-      {
         "date": "2026-10-07",
         "regime": "Correcting",
         "label": "CORR",
@@ -108,6 +102,12 @@
       },
       {
         "date": "2026-10-12",
+        "regime": "Correcting",
+        "label": "CORR",
+        "colour": "correct"
+      },
+      {
+        "date": "2026-10-13",
         "regime": "Correcting",
         "label": "CORR",
         "colour": "correct"
