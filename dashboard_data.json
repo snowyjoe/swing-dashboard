@@ -1,8 +1,8 @@
 {
   "meta": {
-    "generated_at": "2026-11-02T20:00:41.191356",
-    "generated_date": "2026-11-02",
-    "generated_time": "20:00 IST",
+    "generated_at": "2026-11-03T17:36:19.450090",
+    "generated_date": "2026-11-03",
+    "generated_time": "17:36 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
@@ -10,9 +10,9 @@
     "data_as_of": "2026-11-02",
     "data_as_of_label": "Mon 02 Nov 2026 close",
     "is_intraday_partial": false,
-    "is_stale": false,
-    "data_freshness": "fresh",
-    "data_status_text": "✓ EOD final (today's close)"
+    "is_stale": true,
+    "data_freshness": "stale",
+    "data_status_text": "⚠ BEHIND — expected Tue 03 Nov, using previous session"
   },
   "market_pulse": {
     "nifty": {
@@ -84,12 +84,6 @@
   "regime_transition": {
     "history": [
       {
-        "date": "2026-10-27",
-        "regime": "Correcting",
-        "label": "CORR",
-        "colour": "correct"
-      },
-      {
         "date": "2026-10-28",
         "regime": "Correcting",
         "label": "CORR",
@@ -112,12 +106,18 @@
         "regime": "Bullish Trending",
         "label": "BULL",
         "colour": "bull"
+      },
+      {
+        "date": "2026-11-03",
+        "regime": "Bullish Trending",
+        "label": "BULL",
+        "colour": "bull"
       }
     ],
-    "status": "FRESH BULL",
-    "days_in_regime": 1,
+    "status": "IMPROVING",
+    "days_in_regime": 2,
     "direction": "improving",
-    "note": "Day 1 confirming — size half, do not chase"
+    "note": "Regime climbing — re-engage cautiously"
   },
   "breadth": {
     "breadth_pct": null,
@@ -135,7 +135,7 @@
       "text": "Nifty reclaimed 50 EMA — medium-term trend confirming"
     }
   ],
-  "insight_fallback_text": "New bullish regime — day 1 above 20 EMA.",
+  "insight_fallback_text": "Regime climbing from prior correction.",
   "playbook": {
     "run": [
       {
@@ -156,13 +156,13 @@
       }
     ],
     "cap_new_entries": 2,
-    "size_rule": "half",
-    "size_reason": "FRESH BULL day 1 — confirm before full size",
+    "size_rule": "full",
+    "size_reason": "",
     "override": null,
     "today_mode": {
       "mode": "TRADE — half size",
-      "wait_for": "Pullbacks to 20 EMA in ready sectors",
-      "dont": "Chase extended sectors, anticipate breakouts"
+      "wait_for": "Confirmation of new uptrend",
+      "dont": "Full size until trend proves itself"
     }
   },
   "scan_here": {
