@@ -1,8 +1,8 @@
 {
   "meta": {
-    "generated_at": "2026-11-09T20:29:46.400646",
-    "generated_date": "2026-11-09",
-    "generated_time": "20:29 IST",
+    "generated_at": "2026-11-10T17:31:48.289899",
+    "generated_date": "2026-11-10",
+    "generated_time": "17:31 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
@@ -10,9 +10,9 @@
     "data_as_of": "2026-11-09",
     "data_as_of_label": "Mon 09 Nov 2026 close",
     "is_intraday_partial": false,
-    "is_stale": false,
-    "data_freshness": "fresh",
-    "data_status_text": "✓ EOD final (today's close)"
+    "is_stale": true,
+    "data_freshness": "stale",
+    "data_status_text": "⚠ BEHIND — expected Tue 10 Nov, using previous session"
   },
   "market_pulse": {
     "nifty": {
@@ -84,12 +84,6 @@
   "regime_transition": {
     "history": [
       {
-        "date": "2026-11-03",
-        "regime": "Bullish Trending",
-        "label": "BULL",
-        "colour": "bull"
-      },
-      {
         "date": "2026-11-04",
         "regime": "Bullish Trending",
         "label": "BULL",
@@ -109,6 +103,12 @@
       },
       {
         "date": "2026-11-09",
+        "regime": "Bullish Trending",
+        "label": "BULL",
+        "colour": "bull"
+      },
+      {
+        "date": "2026-11-10",
         "regime": "Bullish Trending",
         "label": "BULL",
         "colour": "bull"
