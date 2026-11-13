@@ -1,9 +1,5 @@
 [
   {
-    "date": "2026-10-16",
-    "regime": "Sideways"
-  },
-  {
     "date": "2026-10-19",
     "regime": "Sideways"
   },
@@ -77,6 +73,10 @@
   },
   {
     "date": "2026-11-12",
+    "regime": "Bullish Trending"
+  },
+  {
+    "date": "2026-11-13",
     "regime": "Bullish Trending"
   }
 ]
