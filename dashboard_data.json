@@ -1,31 +1,31 @@
 {
   "meta": {
-    "generated_at": "2026-11-23T21:55:41.190779",
-    "generated_date": "2026-11-23",
-    "generated_time": "21:55 IST",
+    "generated_at": "2026-11-24T20:31:17.498297",
+    "generated_date": "2026-11-24",
+    "generated_time": "20:31 IST",
     "data_source": "Upstox API v2",
     "index_lookback_days": 365,
     "breadth_lookback_days": 50,
     "schema_version": "1.5",
-    "data_as_of": "2026-11-20",
-    "data_as_of_label": "Fri 20 Nov 2026 close",
+    "data_as_of": "2026-11-23",
+    "data_as_of_label": "Mon 23 Nov 2026 close",
     "is_intraday_partial": false,
     "is_stale": true,
     "data_freshness": "stale",
-    "data_status_text": "⚠ BEHIND — expected Mon 23 Nov, using previous session"
+    "data_status_text": "⚠ BEHIND — expected Tue 24 Nov, using previous session"
   },
   "market_pulse": {
     "nifty": {
-      "current_close": 25800.6,
-      "prev_close": 25514.3,
-      "change_pct": 1.12,
-      "ema_20": 24630.78,
-      "ema_50": 23995.92,
-      "ema_200": 24199.83,
-      "atr_14": 317.27,
+      "current_close": 25349.65,
+      "prev_close": 25800.6,
+      "change_pct": -1.75,
+      "ema_20": 24699.24,
+      "ema_50": 24049.01,
+      "ema_200": 24211.27,
+      "atr_14": 340.95,
       "high_52w": 26373.2,
       "low_52w": 22179.9,
-      "candle_count": 247,
+      "candle_count": 248,
       "label": "Nifty 50",
       "instrument_key": "NSE_INDEX|Nifty 50"
     },
@@ -84,12 +84,6 @@
   "regime_transition": {
     "history": [
       {
-        "date": "2026-11-17",
-        "regime": "Bullish Trending",
-        "label": "BULL",
-        "colour": "bull"
-      },
-      {
         "date": "2026-11-18",
         "regime": "Bullish Trending",
         "label": "BULL",
@@ -109,6 +103,12 @@
       },
       {
         "date": "2026-11-23",
+        "regime": "Bullish Trending",
+        "label": "BULL",
+        "colour": "bull"
+      },
+      {
+        "date": "2026-11-24",
         "regime": "Bullish Trending",
         "label": "BULL",
         "colour": "bull"
